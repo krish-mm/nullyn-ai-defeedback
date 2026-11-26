@@ -34,7 +34,7 @@ engineers.
 
 **In progress**
 
-- **Moving-microphone tracking** — the main open algorithm problem. SIMULATED (`summary.json`, 07:46 CT, 26 Nov 2026; 575 held-out scenarios): the Nullyn AI closed loop howled in **0.7%** of static-mic runs (690) and **37.6%** of walking-performer runs (1,035). The classic notch howled in **30.7%** of those walking runs. (The classic notch's 34.5% howl rate is for a static mic, not a walking one.)
+- **Moving-microphone tracking** — still the main open algorithm problem, improved in 0.2.0 but not solved. SIMULATED (same 575 held-out scenarios, gains, and seeds as `summary.json`, 07:46 CT; closed-loop re-run 15:11 CT, 26 Nov 2026, America/Chicago): the Nullyn AI closed loop howled in **0.6%** of static-mic runs (4 / 690; was 0.7%) and **31.6%** of walking-performer runs (327 / 1,035; was 37.6%). The classic notch still howled in **30.7%** of those walking runs, so the closed loop remains slightly behind on walking. (The classic notch's 34.5% howl rate is for a static mic, not a walking one.)
 - **Real-room tests** of the v1 laptop path, logged with `scripts/record_session.py`. No real-venue numbers yet.
 - **Latency on real laptops**, especially Windows ASIO and macOS CoreAudio, which have not been measured.
 
@@ -189,8 +189,8 @@ or macOS CoreAudio.
 | Mode | Rate / internal block | Budget | Median | p95 | Max | Median load |
 |---|---|---|---|---|---|---|
 | Notch, Nullyn AI v0 | 48 kHz, 128 samples | 2.667 ms | 0.005 ms | 1.242 ms | 2.844 ms | 0.2% |
-| Closed loop, Nullyn AI v0 | 48 kHz, 192 samples (4 ms) | 4.000 ms | 0.356–0.394 ms | 3.903–4.405 ms | 8.4–10.9 ms | 8.9–9.8% |
-| Closed loop, Nullyn AI v0 | 16 kHz, 64 samples | 4.000 ms | 0.242 ms | 2.252 ms | 9.446 ms | 6.1% |
+| Closed loop, Nullyn AI v0 (tracking, 0.2.0) | 48 kHz, 192 samples (4 ms) | 4.000 ms | 0.684–0.694 ms | 3.014–4.785 ms | 9.4–18.7 ms | 17.1–17.3% |
+| Closed loop, Nullyn AI v0 (tracking, 0.2.0) | 16 kHz, 64 samples | 4.000 ms | 0.355 ms | 1.554 ms | 1.712 ms | 8.9% |
 
 Median load is modest, including for the closed loop. On this shared VM,
 though, p95 callback time approached or exceeded the 4 ms closed-loop
@@ -216,9 +216,13 @@ be measured on the laptop and interface you actually use.
 ### Simulated
 
 Labelled **SIMULATED**. pyroomacoustics image-source shoebox rooms, 16 kHz,
-4 s runs. Not measured in real venues or on hardware. Source:
-`summary.json` from the research simulator, generated 26 November 2026,
-07:46 CT, and the unpublished Nullyn AI whitepaper v0.3. The closed-loop
+4 s runs. Not measured in real venues or on hardware. Notch-layer numbers
+are from `summary.json` from the research simulator, generated 26 November
+2026, 07:46 CT, and the unpublished Nullyn AI whitepaper v0.3. Closed-loop
+numbers are a re-run of that same steady protocol (identical 575 held-out
+scenarios, gains, and seeds) on 26 November 2026, 15:11 CT,
+America/Chicago, with the v0.2 tracking canceller
+(`docs/results/closedloop-v0.2-steady.json`). The closed-loop
 protocols cover less than a fifth of the planned 3,900 held-out scenarios.
 
 **Steady protocol** — 575 held-out scenarios, 1,725 matched runs per
@@ -226,32 +230,34 @@ processor (690 static microphone, 1,035 walking performer):
 
 | Metric | No processing | Classic notch | Nullyn AI v0 (notch) | Nullyn AI closed loop |
 |---|---|---|---|---|
-| Howl rate, all | 46.6% | 32.2% | 25.6% | 22.8% |
-| Static mic (690 runs) | 48.6% | 34.5% | 26.5% | **0.7%** |
-| Walking performer (1,035 runs) | 45.3% | 30.7% | **25.0%** | 37.6% |
-| Fader headroom ≤50% (all / static / walking) | +1.0 / +1.0 / +2.5 dB | +3.5 / +2.5 / +4.5 dB | +5.0 / +4.5 / +5.0 dB | +4.0 / **+15.5** / +2.5 dB |
+| Howl rate, all | 46.6% | 32.2% | 25.6% | **19.2%** |
+| Static mic (690 runs) | 48.6% | 34.5% | 26.5% | **0.6%** |
+| Walking performer (1,035 runs) | 45.3% | 30.7% | **25.0%** | 31.6% |
+| Fader headroom ≤50% (all / static / walking) | +1.0 / +1.0 / +2.5 dB | +3.5 / +2.5 / +4.5 dB | +5.0 / +4.5 / +5.0 dB | +6.0 / **+15.5** / +3.0 dB |
 
 ![SIMULATED howl rate by method for static microphones versus walking performers](docs/img/howl-static-vs-walking.png)
 
-*SIMULATED. Howl rate on the closed-loop steady protocol (`summary.json`, 07:46 CT, 26 Nov 2026): 575 held-out scenarios, 690 static-mic runs and 1,035 walking-performer runs per processor. The Nullyn AI closed loop howled in 0.7% of static runs and 37.6% of walking runs; the classic notch howled in 30.7% of walking runs (its 34.5% rate is static, not walking).*
+*SIMULATED. Howl rate on the closed-loop steady protocol: 575 held-out scenarios, 690 static-mic runs and 1,035 walking-performer runs per processor. Notch-layer bars from `summary.json`, 07:46 CT, 26 Nov 2026. Closed-loop bars from the v0.2 tracking re-run, 15:11 CT, same scenarios, gains, and seeds. The Nullyn AI closed loop howled in 0.6% of static runs and 31.6% of walking runs; the classic notch howled in 30.7% of walking runs (its 34.5% rate is static, not walking).*
 
 ![SIMULATED fader headroom at or below 50 percent howl risk, static versus walking](docs/img/headroom-static-vs-walking.png)
 
-*SIMULATED. Fader headroom at ≤50% howl risk, same steady protocol and run counts as the chart above (`summary.json`, 07:46 CT). The closed loop reaches +15.5 dB on static mics and +2.5 dB when the performer walks; the classic notch reaches +4.5 dB on the walking runs.*
+*SIMULATED. Fader headroom at ≤50% howl risk, same steady protocol and run counts as the chart above. Closed-loop bars from the v0.2 tracking re-run, 15:11 CT. The closed loop reaches +15.5 dB on static mics and +3.0 dB when the performer walks; the classic notch reaches +4.5 dB on the walking runs.*
 
 ![SIMULATED overall howl rate on matched steady-protocol runs](docs/img/howl-rate-all.png)
 
-*SIMULATED. Overall howl rate on 1,725 matched runs per processor (575 held-out scenarios, static and walking combined) from `summary.json`, 07:46 CT.*
+*SIMULATED. Overall howl rate on 1,725 matched runs per processor (575 held-out scenarios, static and walking combined). Closed-loop bar from the v0.2 tracking re-run, 15:11 CT (19.2%); other bars from `summary.json`, 07:46 CT.*
 
 ![Measured per-block CPU time of NullynEngine on the development box](docs/img/cpu-per-block.png)
 
-*Measured offline CPU time of `NullynEngine.process` on an Intel Xeon Processor (8 logical processors, 2.40 GHz, Linux VM), 26 November 2026, as reported in [Minimum laptop requirements](#minimum-laptop-requirements). This is not analog I/O latency and not a venue result. The 48 kHz closed-loop bars show the range of two runs (median 0.356–0.394 ms, p95 3.903–4.405 ms) against a 4.000 ms budget.*
+*Measured offline CPU time of `NullynEngine.process` on an Intel Xeon Processor (8 logical processors, 2.40 GHz, Linux VM), 26 November 2026, as reported in [Minimum laptop requirements](#minimum-laptop-requirements). This is not analog I/O latency and not a venue result. The 48 kHz closed-loop bars show the range of two v0.2 tracking runs (median 0.684–0.694 ms, p95 3.014–4.785 ms) against a 4.000 ms budget.*
 
-Moving mics are the open problem. On walking runs the closed loop (37.6%)
-did worse than the classic notch (30.7%) and the notch layer alone (25.0%);
-its 0.7% static-mic howl rate is a different condition. Details, operator
-and ablation tables, run counts and limitations are in
-`paper/nullyn-algorithm.pdf` (and `paper/nullyn-algorithm.md`).
+Moving mics are still the open problem. On walking runs the v0.2 closed
+loop (31.6%, down from 37.6% in 0.1.0) improved but remains slightly
+behind the classic notch (30.7%) and the notch layer alone (25.0%). Its
+0.6% static-mic howl rate and +15.5 dB static headroom did not regress.
+Details, operator and ablation tables, run counts and limitations for the
+earlier 0.1.0 closed loop are in `paper/nullyn-algorithm.pdf` (and
+`paper/nullyn-algorithm.md`).
 
 This repository does not include simulator sweep dumps.
 

@@ -2,9 +2,13 @@
 """Render README result charts from checked simulated and benchmark numbers.
 
 Sources (no invented values):
-  * Closed-loop steady protocol in the research summary.json generated
-    26 November 2026, 07:46 CT (575 held-out scenarios; 1,725 matched runs
-    per processor; 690 static-mic runs; 1,035 walking-performer runs).
+  * Notch-layer bars: closed-loop steady protocol in the research
+    summary.json generated 26 November 2026, 07:46 CT (575 held-out
+    scenarios; 1,725 matched runs per processor; 690 static-mic runs;
+    1,035 walking-performer runs).
+  * Closed-loop bars: same protocol, gains, and seeds, re-run 26 November
+    2026, 15:11 CT with the v0.2 tracking canceller
+    (docs/results/closedloop-v0.2-steady.json).
   * Offline CPU timings already reported in the README (scripts/benchmark_cpu.py
     on the development box, 26 November 2026).
 
@@ -38,30 +42,30 @@ GRID = "#2A2A2A"
 # Values are the percentages / dB already published in the README, which were
 # rounded from summary.json the same way as whitepaper v0.3 (one decimal).
 STEADY = {
-    "source": "summary.json › steady, generated 2026-11-26 07:46 CST",
+    "source": "summary.json 07:46 CT (notch layers) + v0.2 tracking eval 15:11 CT (closed loop), 26 Nov 2026",
     "label": "SIMULATED. pyroomacoustics image-source shoebox rooms, 16 kHz, 4 s runs.",
     "scenarios": 575,
     "runs_matched": 1725,
     "runs_static": 690,
     "runs_walking": 1035,
     "methods": ["No processing", "Classic notch", "Nullyn AI v0\n(notch)", "Nullyn AI\nclosed loop"],
-    "howl_all": [46.6, 32.2, 25.6, 22.8],
-    "howl_static": [48.6, 34.5, 26.5, 0.7],
-    "howl_walking": [45.3, 30.7, 25.0, 37.6],
-    "headroom50_all": [1.0, 3.5, 5.0, 4.0],
+    "howl_all": [46.6, 32.2, 25.6, 19.2],
+    "howl_static": [48.6, 34.5, 26.5, 0.6],
+    "howl_walking": [45.3, 30.7, 25.0, 31.6],
+    "headroom50_all": [1.0, 3.5, 5.0, 6.0],
     "headroom50_static": [1.0, 2.5, 4.5, 15.5],
-    "headroom50_walking": [2.5, 4.5, 5.0, 2.5],
+    "headroom50_walking": [2.5, 4.5, 5.0, 3.0],
 }
 
 # Exact fractions in summary.json, used only for a cross-check when the file
 # is available (rounded values above must match to one decimal).
 STEADY_EXACT = {
-    "howl_all": [0.46608695652173915, 0.32231884057971016, 0.25623188405797104, 0.2284057971014493],
-    "howl_static": [0.4855072463768116, 0.34492753623188405, 0.26521739130434785, 0.007246376811594203],
-    "howl_walking": [0.45314009661835747, 0.3072463768115942, 0.25024154589371983, 0.37584541062801935],
-    "headroom50_all": [1.0, 3.5, 5.0, 4.0],
+    "howl_all": [0.46608695652173915, 0.32231884057971016, 0.25623188405797104, 0.1918840579710145],
+    "howl_static": [0.4855072463768116, 0.34492753623188405, 0.26521739130434785, 0.005797101449275362],
+    "howl_walking": [0.45314009661835747, 0.3072463768115942, 0.25024154589371983, 0.3159420289855073],
+    "headroom50_all": [1.0, 3.5, 5.0, 6.0],
     "headroom50_static": [1.0, 2.5, 4.5, 15.5],
-    "headroom50_walking": [2.5, 4.5, 5.0, 2.5],
+    "headroom50_walking": [2.5, 4.5, 5.0, 3.0],
 }
 
 # README "Minimum laptop requirements" table, 26 Nov 2026.
@@ -79,14 +83,14 @@ CPU = {
         {
             "name": "Closed loop\n48 kHz / 192",
             "budget_ms": 4.000,
-            "median_ms": (0.356, 0.394),
-            "p95_ms": (3.903, 4.405),
+            "median_ms": (0.684, 0.694),
+            "p95_ms": (3.014, 4.785),
         },
         {
             "name": "Closed loop\n16 kHz / 64",
             "budget_ms": 4.000,
-            "median_ms": (0.242, 0.242),
-            "p95_ms": (2.252, 2.252),
+            "median_ms": (0.355, 0.355),
+            "p95_ms": (1.554, 1.554),
         },
     ],
 }
@@ -175,7 +179,9 @@ def _maybe_crosscheck():
     if path is None:
         return
     s = json.loads(path.read_text())
-    order = ["none", "classic", "nullyn_v0", "closedloop"]
+    # The 07:46 CT summary still holds for none / classic / nullyn_v0.
+    # Closed-loop numbers were re-measured at 15:11 CT with v0.2 tracking.
+    order = ["none", "classic", "nullyn_v0"]
     keys = [
         ("howl_all", lambda n: s["steady"]["processors"][n]["matched"]["howl_rate"]),
         ("howl_static", lambda n: s["steady"]["processors"][n]["static_mic"]["howl_rate_matched"]),
@@ -186,13 +192,37 @@ def _maybe_crosscheck():
     ]
     for name, getter in keys:
         got = [getter(n) for n in order]
-        exp = STEADY_EXACT[name]
+        exp = STEADY_EXACT[name][:3]
         if any(abs(a - b) > 1e-9 for a, b in zip(got, exp)):
             raise SystemExit(f"summary.json mismatch for {name}: {got} != {exp}")
     gen = s.get("generated", "")
     if "2026-11-26 07:46" not in gen:
         raise SystemExit(f"unexpected summary.json generated timestamp: {gen!r}")
-    print(f"cross-checked embedded numbers against {path}")
+    print(f"cross-checked notch-layer numbers against {path}")
+    v02 = ROOT / "docs" / "results" / "closedloop-v0.2-steady.json"
+    if v02.is_file():
+        d = json.loads(v02.read_text())
+        got_cl = [
+            d["howl_rate_matched"]["all"],
+            d["howl_rate_matched"]["static"],
+            d["howl_rate_matched"]["walking"],
+            d["headroom_db_at_le_50pct"]["all"],
+            d["headroom_db_at_le_50pct"]["static"],
+            d["headroom_db_at_le_50pct"]["walking"],
+        ]
+        exp_cl = [
+            STEADY_EXACT["howl_all"][3],
+            STEADY_EXACT["howl_static"][3],
+            STEADY_EXACT["howl_walking"][3],
+            STEADY_EXACT["headroom50_all"][3],
+            STEADY_EXACT["headroom50_static"][3],
+            STEADY_EXACT["headroom50_walking"][3],
+        ]
+        if any(abs(a - b) > 1e-9 for a, b in zip(got_cl, exp_cl)):
+            raise SystemExit(f"v0.2 results mismatch: {got_cl} != {exp_cl}")
+        if "2026-11-26 15:11" not in d.get("generated", ""):
+            raise SystemExit(f"unexpected v0.2 timestamp: {d.get('generated')!r}")
+        print(f"cross-checked closed-loop numbers against {v02}")
 
 
 def fig_howl_static_walking():
@@ -216,7 +246,7 @@ def fig_howl_static_walking():
     )
     _footnote(
         fig,
-        "SIMULATED. Not measured in a real venue. Closed loop: 0.7% static, 37.6% walking. "
+        "SIMULATED. Not measured in a real venue. Closed loop v0.2 (15:11 CT): 0.6% static, 31.6% walking. "
         "Classic notch walking is 30.7%; its 34.5% rate is static, not walking.",
     )
     fig.tight_layout(rect=(0, 0.05, 1, 0.98))
@@ -247,8 +277,8 @@ def fig_headroom():
     )
     _footnote(
         fig,
-        "SIMULATED. Not measured in a real venue. Closed-loop static headroom is +15.5 dB; "
-        "walking headroom is +2.5 dB. Classic notch walking headroom is +4.5 dB.",
+        "SIMULATED. Not measured in a real venue. Closed-loop v0.2 static headroom is +15.5 dB; "
+        "walking headroom is +3.0 dB. Classic notch walking headroom is +4.5 dB.",
     )
     fig.tight_layout(rect=(0, 0.05, 1, 0.98))
     path = OUT / "headroom-static-vs-walking.png"
@@ -281,7 +311,7 @@ def fig_howl_all():
     _footnote(
         fig,
         "SIMULATED. Not measured in a real venue. Combined figure; see the static-vs-walking "
-        "chart for the split (closed loop 0.7% static vs 37.6% walking).",
+        "chart for the split (closed loop v0.2: 0.6% static vs 31.6% walking).",
     )
     fig.tight_layout(rect=(0, 0.05, 1, 0.98))
     path = OUT / "howl-rate-all.png"
@@ -356,7 +386,7 @@ def fig_cpu():
     _footnote(
         fig,
         CPU["label"] + " Intel Xeon Processor, 8 logical processors, 2.40 GHz, Linux VM. "
-        "48 kHz closed-loop values are the range of two runs.",
+        "48 kHz closed-loop values are the range of two v0.2 tracking runs.",
     )
     fig.tight_layout(rect=(0, 0.05, 1, 0.98))
     path = OUT / "cpu-per-block.png"

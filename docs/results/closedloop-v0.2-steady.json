@@ -1,0 +1,44 @@
+{
+  "label": "SIMULATED",
+  "generated": "2026-11-26 15:11 CST",
+  "protocol": "Same held-out steady protocol as results/closedloop/summary.json (generated 2026-11-26 07:46 CST): test idx 0-574, N_GAINS=3 with rng_for(test, idx, salt=1) and two extra high gains from salt=78, P=64, mu=0.02, soundcheck_s=3.0, SOUNDCHECK_DB=-10. Package ClosedLoopAFC (tracking=True, v0.2 defaults) in the research simulate_cl harness.",
+  "scenarios": 575,
+  "runs_matched": 1725,
+  "runs_static_matched": 690,
+  "runs_walking_matched": 1035,
+  "howl_counts_matched": {
+    "all": [
+      331,
+      1725
+    ],
+    "static": [
+      4,
+      690
+    ],
+    "walking": [
+      327,
+      1035
+    ]
+  },
+  "howl_rate_matched": {
+    "all": 0.1918840579710145,
+    "static": 0.005797101449275362,
+    "walking": 0.3159420289855073
+  },
+  "headroom_db_at_le_50pct": {
+    "all": 6.0,
+    "static": 15.5,
+    "walking": 3.0
+  },
+  "lsd_db_no_howl_matched": {
+    "all": 6.097429279824671,
+    "static": 4.690464294425895,
+    "walking": 7.46067501426473
+  },
+  "kw": {
+    "P": 64,
+    "mu": 0.02,
+    "soundcheck_s": 3.0,
+    "tracking": true
+  }
+}
