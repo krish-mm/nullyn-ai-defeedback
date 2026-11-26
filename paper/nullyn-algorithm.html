@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Nullyn AI: The Feedback-Suppression Algorithm</title>
+<style>
+@page { size: letter; margin: 0.85in 0.9in 0.9in 0.9in; }
+html, body { background: #ffffff; color: #161616; }
+body {
+  font-family: "Liberation Serif", "Times New Roman", Times, serif;
+  font-size: 11.5pt;
+  line-height: 1.45;
+  max-width: 7.2in;
+  margin: 0 auto;
+}
+h1 { font-size: 20pt; font-weight: 700; line-height: 1.2; margin: 0 0 0.4em; letter-spacing: -0.01em; }
+h2 { font-size: 13.5pt; font-weight: 700; margin: 1.35em 0 0.45em; page-break-after: avoid; }
+h3 { font-size: 12pt; font-weight: 700; margin: 1.1em 0 0.35em; page-break-after: avoid; }
+p, li { margin: 0 0 0.55em; }
+em { font-style: italic; }
+strong { font-weight: 700; }
+a { color: #161616; text-decoration: none; }
+hr { display: none; }
+/* byline block: first paragraphs after h1 */
+h1 + p { margin-bottom: 0.15em; }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.6em 0 1em;
+  font-size: 11pt;
+  line-height: 1.3;
+  page-break-inside: avoid;
+}
+th, td {
+  border: 0.4pt solid #444;
+  padding: 3.5pt 5pt;
+  text-align: left;
+  vertical-align: top;
+}
+th { background: #f0f0f0; font-weight: 700; }
+code, pre {
+  font-family: "Liberation Mono", "Courier New", monospace;
+  font-size: 10pt;
+}
+code { background: #f4f4f4; padding: 0 2pt; }
+</style>
+</head>
+<body>
+<h1>Nullyn AI: The Feedback-Suppression Algorithm</h1>
+<p><strong>Krish Moodbidri</strong><br />
+Nullyn AI<br />
+26 November 2026  </p>
+<p><em>Confidential draft. This note describes the algorithm implemented in the <code>nullyn-ai-defeedback</code> repository. It is not for public release until a provisional patent is filed and Krish Moodbidri approves. All performance numbers below are <strong>SIMULATED</strong>. None have been measured in a real room or on hardware.</em></p>
+<h2>1. The problem</h2>
+<p>In live sound, a microphone hears the loudspeakers that are amplifying it. When the loop gain around some frequency exceeds unity and the phase lines up, that frequency rings and then howls. Front-of-house engineers have lived with this for decades. The usual remedies are well known: ring the room out by hand with a graphic or parametric equalizer; cut automatic notches as howl appears; or shift the pitch of the channel by a few hertz so the loop cannot stay coherent [1], [2], [4].</p>
+<p>Those tools work well enough in many rooms, and the market is not empty. Hardware boxes, mixer firmware and plugins already sell into this job. The remaining complaint, and the reason Nullyn AI exists, is quality. Notch filters thin the sound as more of them go in. Frequency shifters smear vocals and are harsh on instruments. A lot of working FOH engineers therefore turn automatic suppressors off and ring the room by hand.</p>
+<p>Nullyn AI is an attempt to get more gain before feedback without making the sound worse, including when a performer walks with the microphone. This paper explains how the algorithm does that: the signal path, the detector, the notch layer, the closed-loop canceller, the learning loop and the latency budget. It then reports the simulated results, states the open problem of moving microphones, and sketches the v1 / v2 / v3 roadmap. It does not set dates.</p>
+<p>A longer research write-up (Nullyn AI whitepaper v0.3, unpublished) contains the full evaluation protocol, competitive context and hardware notes. The numbers here are taken from that paper and from the closed-loop summary file it uses (<code>summary.json</code>, generated 26 November 2026, 07:46 CT).</p>
+<h2>2. Signal path</h2>
+<p>Nullyn AI sits on a microphone channel as an insert. It has two inputs and one output.</p>
+<ul>
+<li><strong>Input 1 (microphone).</strong> The performer&rsquo;s microphone or line signal, before the mixer.</li>
+<li><strong>Input 2 (reference).</strong> A line-level feed of the mixer output that drives the loudspeakers the microphone can hear (mains or a monitor send).</li>
+<li><strong>Output.</strong> The processed microphone signal, returned to the mixer channel.</li>
+</ul>
+<p>The first product prototype (v1) does this on a laptop. An XLR-to-USB audio interface converts the microphone — and, for the closed loop, the speaker feed — to digital audio; Nullyn AI processes the stream; the interface converts the output back and returns it to the console. Conversion, USB transport and the operating system&rsquo;s audio buffers all add delay. That delay has not been measured yet.</p>
+<p>The algorithm itself is built as two layers on two time scales.</p>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Role</th>
+<th>Time scale</th>
+<th>In the audio path?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Closed-loop canceller</td>
+<td>Subtracts predicted feedback using the speaker-feed reference (Section 5)</td>
+<td>Per sample, from an estimate computed on earlier reference blocks</td>
+<td>Yes; adds no samples of its own (Section 7)</td>
+</tr>
+<tr>
+<td>Notch filters</td>
+<td>Per-sample IIR notches at frequencies the detector flags (Section 4)</td>
+<td>Per sample</td>
+<td>Yes; about one sample of processing</td>
+</tr>
+<tr>
+<td>Detector</td>
+<td>Decides which spectral peaks are howl (Section 3)</td>
+<td>64 ms windows every 16 ms</td>
+<td>No; it only updates notch settings</td>
+</tr>
+<tr>
+<td>Learning loop</td>
+<td>Retrains the detector from failures (Section 6)</td>
+<td>Offline</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+<p>The audio is never delayed by the neural network. The network, or the classic rule set, only changes filter coefficients. That split is the same idea used in some noise-cancelling products, where a fast filter path is steered by slower control [14].</p>
+<h2>3. Detection</h2>
+<p>The detector never sits in the audio path. A causal side chain (<code>nullyn.features.SideChain</code>) looks at the microphone signal — or, when the canceller is running, at the residual after cancellation.</p>
+<p>At a 16 kHz research rate the side chain takes a 1,024-point Hann window (64 ms) every 256 samples (16 ms) and computes the power spectrum in dB. Window and hop lengths scale with sample rate so that those time intervals are kept at 48 kHz or 96 kHz. It keeps about one second of history: 64 frames of spectra, a peak map, sub-bin peak positions, spectral flux and a leaky average. Each frame it lists local spectral maxima between 80 Hz and 7.8 kHz, keeps the five strongest candidates that stand at least 6 dB above the frame mean, and refines each frequency with parabolic interpolation.</p>
+<p>Each candidate is described by 17 features, chosen to capture what the literature and our experiments suggest separates a growing feedback tone from a sung or played note [2], [3]:</p>
+<ul>
+<li><strong>Prominence.</strong> Peak-to-average (PAPR), peak-to-neighbour (PNPR), level versus the frame maximum, and level versus a one-second average. Howl stands out from what is around it.</li>
+<li><strong>Harmonicity.</strong> Peak-to-harmonic (PHPR, 2nd–4th harmonics) and peak-to-subharmonic. A feedback tone is usually a lone sinusoid; voice and instruments come with harmonics.</li>
+<li><strong>Persistence.</strong> Inter-frame peak magnitude persistence (IPMP over five frames) and run length as a peak. Howl stays put.</li>
+<li><strong>Growth.</strong> Level slope over four and eight frames. Howl grows steadily; notes decay or vary.</li>
+<li><strong>Stability.</strong> Frequency spread and amplitude spread over recent frames. Vibrato and playing wobble; feedback does not.</li>
+<li><strong>Shape and context.</strong> −6 dB width, log frequency, spectral flux at birth and in the current frame, and a count of strong peaks.</li>
+</ul>
+<p>Two detectors share this side chain and the same notch bank.</p>
+<p><strong>Classic rules.</strong> A peak is flagged when PNPR, PHPR, PAPR and IPMP all clear their thresholds, and the flag holds for two consecutive frames. The thresholds used here were tuned on training rooms (<code>classic_tuned.json</code>: PNPR 10 dB, PHPR 20 dB, PAPR 15 dB, two-frame persistence). This is the van Waterschoot and Moonen style of automatic notch suppressor [2], [3], and it is the baseline the learned detector has to beat.</p>
+<p><strong>Nullyn AI v0.</strong> A small multilayer perceptron (17–32–16–1, 1,121 parameters) maps the same 17 features to a howl probability. The default threshold is 0.7. The same two-frame persistence rule is applied after the network. The forward pass is plain NumPy; there is no neural-network runtime on the audio path. Weights shipped with the package were trained on simulated rooms and are a few tens of kilobytes.</p>
+<p>Detection therefore costs a spectrum every 16 ms and a 1,121-parameter evaluation on at most five candidates. Median detection delay in the main held-out sweep was 96 ms for Nullyn AI v0 and 112 ms for the classic suppressor (whitepaper v0.3, Table 3; 3,900 scenarios, 11,700 runs per processor). That delay is in the control path. It does not delay the audio.</p>
+<h2>4. Notch suppression</h2>
+<p>The audio-path filter is a bank of per-sample IIR peaking notches (RBJ cookbook biquads [the same topology used as a cut]). Up to 24 notches may be active. A new howl starts at −6 dB; each later hit at a nearby frequency deepens the cut by 3 dB, down to −30 dB. After 8 s without a hit the notch releases at 1.5 dB per second and is removed once it is shallower than −1 dB. Nearby hits are merged rather than stacked, so the bank does not fill up with duplicates.</p>
+<p>Coefficient updates take effect on subsequent samples. The bank itself adds no look-ahead and no frame of algorithmic delay. An IIR notch does add frequency-dependent group delay, largest next to the notch frequency; that is a property of the filter, not of the detector.</p>
+<p>This layer is the fallback as well as a complete suppressor on its own. When no speaker-feed reference is available, Nullyn AI runs the notch layer only. That is also how the v1 laptop prototype should start in a room that cannot provide a clean reference.</p>
+<h2>5. Closed-loop cancellation</h2>
+<p>When a reference of what the loudspeakers are playing is available, Nullyn AI first subtracts a prediction of the feedback and then runs the same notch layer on the residual.</p>
+<p>Write (e[n] = x[n] - \hat{y}[n]), where (x[n]) is the microphone and (\hat{y}[n]) is an adaptive estimate of the speaker-to-microphone path applied to the reference. The estimate is a partitioned-block frequency-domain NLMS filter (overlap-save, gradient-constrained) with 64 partitions. At 16 kHz the block is 64 samples (4 ms) and the filter covers 256 ms (4,096 taps). Those are the settings used in the closed-loop simulations (<code>P = 64</code>, step size (\mu = 0.02), 3 s sound check).</p>
+<p>(\hat{y}) for the current block is formed only from earlier reference blocks. That is possible because the true acoustic path, plus any mixer and USB delay, is itself delayed: the first 4 ms of the path are treated as zero. Under that condition the canceller adds <strong>no samples</strong> of audio latency. If the external loop delay is shorter than one AFC block plus reference-path converter and buffer delay, the condition fails and the canceller must not be used in this form. On a laptop, USB buffer delay on the reference is part of that budget and is still unmeasured (Section 7).</p>
+<p>A well-known bias appears when the source signal (voice or music) is correlated with the loudspeaker signal, which it always is in this problem [2], [11]. Nullyn AI follows the prediction-error method (PEM): the error and the reference are prewhitened by a short-term LPC (order 16, updated every four blocks, with a lag window) and an optional long-term (pitch) predictor before the NLMS update [11], [2]. Without prewhitening, every ablation run howled (Section 8).</p>
+<p><strong>Sound check.</strong> Before a show, the box can identify the path with the talker silent. For three seconds it plays white probe noise on its own mixer channel, at −10 dB relative to broadband maximum stable gain in the simulation, and adapts with plain NLMS (a white probe does not need PEM). Then it switches to show mode: live cancellation with PEM, plus the notch fallback.</p>
+<p>The canceller code lives in a separate package, <code>nullyn.closedloop</code>, so that it can be omitted from a public release if needed.</p>
+<h2>6. The learning loop</h2>
+<p>Nullyn AI is designed to improve from its own failures.</p>
+<ol>
+<li>Run the current detector on training-split scenarios. A failure is a run where a howl was not recovered, or where three or more false notches were placed.</li>
+<li>Re-simulate those failures with the microphone recorded, and label every side-chain candidate with the simulation oracle (a narrow band of the loudspeaker sitting well above the dry, feedback-free signal).</li>
+<li>Retrain the classifier on the old and new data, with failures weighted more heavily.</li>
+<li>Re-threshold on a held-out slice of the training split. The objective used in the first loop was howl rate + 0.02 × false notches per run.</li>
+<li>Accept or reject the new model on held-out scenarios.</li>
+</ol>
+<p>In the first loop, v0 ran on 8,832 training-split runs. Of its 6,076 failures, 900 runs were relabelled, adding 878,911 samples (21.5% of them howl). The retrained model, v0.1, used threshold 0.9. On an acceptance test of 2,000 held-out scenarios (6,000 runs per processor; whitepaper v0.3, Table 2) v0.1 traded a 1.3-point higher howl rate (27.3% versus 26.0%) for 22% fewer false notches (3.50 versus 4.49 per run) and slightly better tone. That was not a clear win, so <strong>v0 was kept</strong>. The loop works mechanically. The weak points are the objective and the labels. The data that would matter most are real-venue failures logged during prototype use, labelled with the help of working FOH engineers.</p>
+<p>The same loop is planned for the closed-loop layer: log cases where the canceller diverges or tracks too slowly, and use them to tune adaptation control. That has not been run yet.</p>
+<h2>7. Latency</h2>
+<p>Performers notice delay. In a study of 19 musicians, in-ear vocalists rated up to about 1 ms of added latency as “Good” [15]. The design is budgeted against that, with an honest split between what is known and what is not.</p>
+<p><strong>Notch path.</strong> The filters run one sample at a time. Processing adds about one sample period: 10.4 µs at 96 kHz (1/(f_s); our arithmetic). In the device model, 24 settled notches at 96 kHz had a median group delay of 678.5 µs across 100 Hz–10 kHz, and up to 8,769 µs right beside a notch (whitepaper v0.3, Section 8.1).</p>
+<p><strong>Converters, in a future hardware box.</strong> Analog-to-digital and digital-to-analog filters dominate a dedicated device. Using datasheet group delays rounded up to whole samples, the device model gives analog-in to analog-out figures of 104.17 µs for a low-latency converter pair, 406.25 µs for a PCM3060, and 427.08 µs for a typical pair, all at 96 kHz, of which 10.42 µs is the DSP share (whitepaper v0.3, Section 8.2). Those are model figures, not hardware measurements. Apart from the PCM3060 datasheet [16], the whitepaper notes that the other datasheets were not re-checked for that draft.</p>
+<p><strong>Closed-loop canceller.</strong> As in Section 5, the canceller adds no audio-path samples provided the external loop delay exceeds one 4 ms block plus reference-path delay.</p>
+<p><strong>v1 laptop prototype: unknown until measured.</strong> A USB interface and the operating system&rsquo;s audio buffers add round-trip latency that we have not measured. It may well exceed the 1 ms “Good” level for in-ear vocals [15]. That is acceptable for a prototype whose job is to validate the algorithm, but it also tightens the canceller&rsquo;s external-delay condition. Measuring both — callback time, reported stream latency, and analog-to-analog round trip — is a first task for v1. The <code>nullyn rt</code> command prints callback CPU time, the buffer length, and PortAudio&rsquo;s reported latency. It does not print a measured analog figure, because we do not have one.</p>
+<p>A compute estimate for a future embedded circuit (a 480 MHz Cortex-M7 class part) is given in whitepaper v0.3, Section 8.5. It is an estimate from operation counts, not a measurement.</p>
+<h2>8. Simulated results</h2>
+<p>Every number in this section is <strong>SIMULATED</strong> in pyroomacoustics image-source shoebox rooms [12], [13]. The rooms are synthetic venue layouts, 16 kHz, 4 s runs. Nothing here was measured in a real venue or on hardware. The closed-loop protocols cover less than a fifth of their planned 3,900 held-out scenarios (575 and 475 scenarios in <code>summary.json</code>). Results should be read as early. <code>summary.json</code> records 14,875 new closed-loop simulations, with no failed scenarios, generated at 07:46 CT on 26 November 2026.</p>
+<p><strong>Howl</strong> means some band of the speaker signal sits more than 12 dB above the dry (feedback-free) reference for at least 0.5 s after (t = 1) s. <strong>Fader headroom</strong> at ≤50% (respectively ≤10%) is the highest fader gain, in dB relative to broadband maximum stable gain at the start position, such that every 0.5 dB gain bin up to it has a howl rate of at most 50% (10%). An <strong>oracle isolation</strong> column is included as an upper-bound reference. It is our own idealised construction, not a model of any commercial product: the simulator hands it the true dry microphone signal and it leaks the non-voice residual at −10 dB, with 4.5 ms of delay.</p>
+<h3>8.1 Notch layer, main held-out sweep</h3>
+<p>Whitepaper v0.3, Table 3, reports the larger notch-only sweep: 3,900 held-out scenarios, 11,700 runs per processor. Nullyn AI v0 howled in 26.1% of runs, against 33.8% for the tuned classic suppressor and 47.3% with no processing. It placed 4.51 false notches per run, against 7.83 for classic, and gave +5.0 dB of fader headroom at ≤50% risk, against +3.5 dB for classic and +1.5 dB with no processing. About a quarter of runs still howled. Very few howls recovered within the 4 s run (5.0% for v0, 4.2% for classic).</p>
+<h3>8.2 Closed loop, steady protocol</h3>
+<p>The table below is the closed-loop steady protocol: 575 held-out scenarios, 1,725 matched runs per processor, of which 690 are static microphones and 1,035 are walking performers (<code>summary.json › steady</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>No processing</th>
+<th>Classic notch</th>
+<th>Nullyn AI v0 (notch)</th>
+<th><strong>Nullyn AI closed loop</strong></th>
+<th>Oracle isolation (upper bound)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Howl rate, all</td>
+<td>46.6%</td>
+<td>32.2%</td>
+<td>25.6%</td>
+<td><strong>22.8%</strong></td>
+<td>2.1%</td>
+</tr>
+<tr>
+<td>Voice</td>
+<td>44.7%</td>
+<td>28.7%</td>
+<td><strong>20.6%</strong></td>
+<td>22.6%</td>
+<td>1.2%</td>
+</tr>
+<tr>
+<td>Music</td>
+<td>50.3%</td>
+<td>39.1%</td>
+<td>35.2%</td>
+<td><strong>23.4%</strong></td>
+<td>3.9%</td>
+</tr>
+<tr>
+<td><strong>Static mic</strong> (690 runs)</td>
+<td>48.6%</td>
+<td>34.5%</td>
+<td>26.5%</td>
+<td><strong>0.7%</strong></td>
+<td>0.3%</td>
+</tr>
+<tr>
+<td><strong>Walking performer</strong> (1,035 runs)</td>
+<td>45.3%</td>
+<td>30.7%</td>
+<td><strong>25.0%</strong></td>
+<td>37.6%</td>
+<td>3.4%</td>
+</tr>
+<tr>
+<td>Mean howl time per run</td>
+<td>1.44 s</td>
+<td>1.08 s</td>
+<td>0.94 s</td>
+<td><strong>0.87 s</strong></td>
+<td>0.10 s</td>
+</tr>
+<tr>
+<td>False notches per run</td>
+<td>0</td>
+<td>7.86</td>
+<td>4.46</td>
+<td><strong>4.25</strong></td>
+<td>n/a</td>
+</tr>
+<tr>
+<td>LSD when stable (voice / music)</td>
+<td>5.89 / 2.99 dB</td>
+<td>6.35 / 5.30 dB</td>
+<td>6.68 / 3.95 dB</td>
+<td>6.42 / 3.33 dB</td>
+<td>4.84 / 3.06 dB</td>
+</tr>
+<tr>
+<td>Fader headroom ≤50%</td>
+<td>+1.0 dB</td>
+<td>+3.5 dB</td>
+<td><strong>+5.0 dB</strong></td>
+<td>+4.0 dB</td>
+<td>+12.0 dB</td>
+</tr>
+<tr>
+<td>Fader headroom ≤10%</td>
+<td>−2.5 dB</td>
+<td>0.0 dB</td>
+<td>+0.5 dB</td>
+<td><strong>+1.0 dB</strong></td>
+<td>+6.0 dB</td>
+</tr>
+</tbody>
+</table>
+<p>The overall figure hides two very different behaviours.</p>
+<p><strong>Static microphones are a step change.</strong> The closed loop howled in 0.7% of static runs, against 34.5% for the classic suppressor and 26.5% for the notch layer alone. Its fader headroom at ≤50% risk was <strong>+15.5 dB</strong> (≤10%: +10.5 dB), against +2.5 dB for classic and +4.5 dB for v0. Even at extra-high gains (+8 to +20 dB), it howled in 28.9% of static runs (460 runs).</p>
+<p><strong>Walking performers are worse than notch filters.</strong> The closed loop howled in <strong>37.6%</strong> of walking runs, worse than the classic notch filter (30.7%) and the notch layer alone (25.0%). Its walking headroom at ≤50% risk was +2.5 dB, against +4.5 dB for classic and +5.0 dB for v0. At the extra-high gains, 99.7% of walking runs howled (690 runs). Section 9 takes this up.</p>
+<p>Music is where the closed loop helps most overall: 23.4% howl against 39.1% for classic. That is consistent with a canceller that does not have to tell a sustained note from howl. Tone is mixed. On stable runs, closed-loop log-spectral distance (5.37 dB) sits between no processing (4.97 dB) and the notch suppressors (6.02 and 5.87 dB). On music it is much closer to unprocessed sound (3.33 dB, against 5.30 dB for classic).</p>
+<h3>8.3 Operator changes after the device</h3>
+<p>Because the reference is taken after the mixer, a fader push or EQ boost shows up in the reference rather than as an unexplained change. On the operator protocol — 475 held-out scenarios, 1,425 runs per processor (<code>summary.json › operator</code>) — the closed loop had the lowest howl rate of the real processors in every condition: 40.4% of all runs, against 48.7% for Nullyn AI v0, 55.0% for classic and 67.7% with no processing. On runs with no event and a single microphone (515 runs) the rates were 23.5%, 25.8%, 31.1% and 48.4% respectively. A fader-only push (351 runs) went to 50.7% closed loop, 65.2% v0, 71.5% classic. A fader push plus an EQ boost (320 runs) went to 63.1%, 77.8% and 84.7%. A second open microphone that the box does not process (441 runs) went to 48.8%, 55.1% and 61.2%. The movement weakness carries over: in this protocol the closed loop howled in 11.1% of static runs but 59.3% of walking runs (classic: 58.6% and 52.6%).</p>
+<h3>8.4 Ablation</h3>
+<p><code>summary.json › ablation</code> reports 80 scenarios and 400 runs per variant. Without PEM prewhitening, <strong>every run howled</strong> (100%). That is the bias problem the literature predicts [2], [11]. A canceller with no notch fallback howled in 33.8% of matched runs (47.5% across all gains in that file). Freezing the model after the sound check howled in 24.2% of matched runs. A cold start with a faster step size ((\mu = 0.05), no sound check) howled in 20.0% of matched runs, but its tone on stable runs was worse (LSD 6.66 dB, against 4.72 dB when the model was frozen and 4.49 dB for the canceller alone). Decorrelation is essential. The fallback matters. The sound check, in this slice, looks more like a tone result than a safety result. Those comparisons should not be mixed naïvely with the 575-scenario steady table; they are a smaller, separate protocol.</p>
+<h2>9. The open problem: moving microphones</h2>
+<p>The closed loop&rsquo;s results split along one variable: whether the microphone moves. In the 575-scenario steady table, static howl is 0.7% and walking howl is 37.6%. A later snapshot reported in whitepaper v0.3, Table 7 (750 scenarios, 2,250 matched runs per processor, calculated from run shards) shows the same split and adds that even the slowest walks (0.3–0.6 m/s, 405 runs) howled in 32.6% of closed-loop runs, against 0.6% for a static microphone. Faster walking made it only somewhat worse. Notch layers degrade gracefully under motion; the canceller does not. When the walk made the feedback path at least 3 dB worse, every real processor howled in 43–67% of runs.</p>
+<p>We think this happens for reasons that are not yet tested. The step size ((\mu = 0.02)) was tuned for low steady-state error, in the range the survey gives for speech [2]. In the simulator the true path changes with each 0.5 s waypoint. A 4,096-tap NLMS filter at that step size probably cannot re-converge between changes. A stale model does not just fail to cancel: it subtracts the wrong signal, and the residual can be larger than with no canceller at all. The notch fallback only sees that residual after detection (median about 100 ms). And the simulator may exaggerate the problem: paths are recomputed every 0.5 s and crossfaded, so motion appears as a sequence of path switches. Real movement is continuous. Whether that makes tracking harder or easier than in a real room is unknown.</p>
+<p>Candidate fixes — a foreground and a background filter, adaptation control, a variable step size — are directions, not results [2]. None has been simulated yet. We make no performance claims for them.</p>
+<h2>10. Limitations</h2>
+<ul>
+<li><strong>Simulated shoebox rooms only.</strong> Image-source order is capped, so late reverb in large venues is incomplete. Crowds are a change in RT60. Moving talkers are a crossfade every 0.5 s.</li>
+<li><strong>Sweeps are partly done.</strong> The closed-loop protocols cover less than a fifth of their planned scenarios.</li>
+<li><strong>The oracle isolation reference is a construction.</strong> Its −10 dB leak and 4.5 ms delay are our assumptions. It bounds an idealised approach and says nothing about any product.</li>
+<li><strong>Laptop latency is unmeasured.</strong> Converter delays in the hardware model come from datasheets; some were not re-checked for whitepaper v0.3. The embedded compute budget is an estimate.</li>
+<li><strong>Reference availability.</strong> The closed loop assumes a clean line-level feed of what the speakers play. Setups with several speaker zones, speaker processing that changes over time, or no accessible send have not been simulated.</li>
+<li><strong>No real-room numbers yet.</strong> Validation with working FOH engineers is planned for v1 and has not been done.</li>
+</ul>
+<h2>11. Roadmap</h2>
+<p>The roadmap has three stages. We give no dates.</p>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>What it is</th>
+<th>What it must prove</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>v1: laptop prototype</strong></td>
+<td>The Nullyn AI algorithms running in real time on a laptop, with a USB audio interface providing the microphone input, the optional reference input and the output</td>
+<td>That the simulated behaviour holds in real rooms. Measure round-trip latency and the external loop-delay condition. Collect real failures for the learning loop, with working FOH engineers.</td>
+</tr>
+<tr>
+<td><strong>v2: our own circuit</strong></td>
+<td>A dedicated hardware device running the same algorithms</td>
+<td>That the latency and compute budgets hold on embedded hardware</td>
+</tr>
+<tr>
+<td><strong>v3: deploy at scale</strong></td>
+<td>Production and wide deployment</td>
+<td>Reliability across many venues and operators</td>
+</tr>
+</tbody>
+</table>
+<p>v1 will be judged on questions this paper cannot answer. Does the closed loop&rsquo;s static-microphone result carry over to real rooms? Can tracking fixes close the walking gap? How often does a real operator create the conditions of Section 8.3? What real-world label source can replace the simulation oracle?</p>
+<p>The closed loop is a potential solution, not a proven product. The static-mic simulation is the first real sign that a speaker-feed approach can beat a notch box. Moving microphones are the problem to crack, and the simulation is only partly done. We will not treat a laptop plugin as the product: that slot is already occupied. The laptop is the test rig. The claim has to be earned in a room, against the incumbents, including on a walking microphone.</p>
+<h2>12. Conclusion</h2>
+<p>Nullyn AI attacks feedback with two layers. A per-sample notch bank, steered by a small learned detector (or by classic rules), is always available and never waits on a network. When a speaker-feed reference is present, a PEM-prewhitened adaptive canceller subtracts predicted feedback first, with the notch layer as fallback, and does so without adding samples of audio latency under a stated delay condition.</p>
+<p>In simulation, that closed loop almost eliminates howl when the microphone is still (0.7% of 690 runs) and gives more than 15 dB of extra fader headroom. When the performer walks, it currently does worse than a notch filter. Those are simulated results on an unfinished sweep. The next proof is a laptop in a real room.</p>
+<h2>References</h2>
+<ol>
+<li>G. Sigismondi, <em>Selection and Operation of Audio Signal Processors</em>, Shure Inc., 2016. https://content-files.shure.com/Pubs/asp-selection-and-operation-of-audio-signal-processors/us_pro_audiosignalprocessor_ea.pdf</li>
+<li>T. van Waterschoot and M. Moonen, &ldquo;Fifty Years of Acoustic Feedback Control: State of the Art and Future Challenges,&rdquo; <em>Proc. IEEE</em>, vol. 99, no. 2, pp. 288–327, 2011. https://doi.org/10.1109/JPROC.2010.2090998</li>
+<li>T. van Waterschoot and M. Moonen, &ldquo;Comparative Evaluation of Howling Detection Criteria in Notch-Filter-Based Howling Suppression,&rdquo; <em>J. Audio Eng. Soc.</em>, vol. 58, no. 11, pp. 923–940, 2010.</li>
+<li>M. R. Schroeder, &ldquo;Improvement of Acoustic-Feedback Stability by Frequency Shifting,&rdquo; <em>J. Acoust. Soc. Am.</em>, vol. 36, no. 9, pp. 1718–1724, 1964. https://doi.org/10.1121/1.1919270 (Cited as reported in [1].)</li>
+<li>A. Spriet, I. Proudler, M. Moonen and J. Wouters, &ldquo;Adaptive Feedback Cancellation in Hearing Aids With Linear Prediction of the Desired Signal,&rdquo; <em>IEEE Trans. Signal Process.</em>, vol. 53, no. 10, pp. 3749–3763, 2005. https://doi.org/10.1109/TSP.2005.855108</li>
+<li>J. B. Allen and D. A. Berkley, &ldquo;Image Method for Efficiently Simulating Small-Room Acoustics,&rdquo; <em>J. Acoust. Soc. Am.</em>, vol. 65, pp. 943–950, 1979. https://doi.org/10.1121/1.382599</li>
+<li>R. Scheibler, E. Bezzam and I. Dokmanić, &ldquo;Pyroomacoustics: A Python Package for Audio Room Simulation and Array Processing Algorithms,&rdquo; <em>Proc. IEEE ICASSP</em>, pp. 351–355, 2018. https://doi.org/10.1109/ICASSP.2018.8461310</li>
+<li>R. F. Carreras, M. P. O&rsquo;Connell, C. J. Mulhearn et al. (Bose Corporation), &ldquo;Computational architecture for active noise reduction device,&rdquo; US Patent 12,148,413 B2, 2024. https://patents.google.com/patent/US12148413B2/en</li>
+<li>M. Lester and J. Boley, &ldquo;The Effects of Latency on Live Sound Monitoring,&rdquo; AES Convention 123, paper 7198, 2007. https://aes.org/publications/elibrary/elibrary-page/?id=14256</li>
+<li>Texas Instruments, <em>PCM3060 24-Bit, 96/192 kHz Asynchronous Stereo Audio Codec</em> datasheet (Rev. B). https://www.ti.com/lit/ds/symlink/pcm3060.pdf</li>
+<li>Nullyn AI, &ldquo;Nullyn AI: How We Detect and Suppress Acoustic Feedback in Live Sound,&rdquo; whitepaper v0.3, unpublished confidential draft, 26 November 2026. Closed-loop figures in this note are from <code>summary.json</code>, generated 26 November 2026, 07:46 CT.</li>
+</ol>
+</body>
+</html>

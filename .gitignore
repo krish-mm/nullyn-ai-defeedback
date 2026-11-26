@@ -1,0 +1,14 @@
+
+!tests/fixtures/*.wav
+*.egg-info/
+*.log
+*.py[cod]
+*.pyc
+*.wav
+.DS_Store
+.coverage
+.pytest_cache/
+.venv/
+__pycache__/
+htmlcov/
+session_log.csv

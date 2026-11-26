@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nullyn"
+version = "0.1.0"
+description = "Nullyn AI acoustic feedback suppression for live sound"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{name = "Krish Moodbidri / Nullyn AI"}]
+# License is pending Krish's choice (GPL vs MIT). See LICENSE.
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.11",
+    "soundfile>=0.12",
+]
+
+[project.optional-dependencies]
+realtime = ["sounddevice>=0.4"]
+dev = ["pytest>=7.0", "sounddevice>=0.4"]
+
+[project.scripts]
+nullyn = "nullyn.cli:main"
+
+[project.urls]
+Homepage = "https://nullyn.ai"
+Repository = "https://github.com/krish-mm/nullyn-ai-defeedback"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+nullyn = ["data/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
