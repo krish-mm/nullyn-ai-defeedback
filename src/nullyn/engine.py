@@ -69,7 +69,10 @@ class NullynEngine:
                     **{k: v for k, v in kw.items() if k in (
                         "P", "mu", "lpc_order", "lpc_every", "lpc_win", "pem",
                         "delta_rel", "adapt", "ltp", "mu_id", "probe_rms",
-                        "probe_seed", "out_fs", "ref_fs",
+                        "probe_seed", "out_fs", "ref_fs", "tracking", "mu_fast",
+                        "erle_drop_db", "leak_on_change", "change_hang_blocks",
+                        "prefer_slow_db", "copy_fast_after",
+                        "notch_thr_unreliable", "notch_need_unreliable",
                     )},
                 )
                 self.block = self.afc.B
