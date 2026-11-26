@@ -5,6 +5,8 @@
 
 **Active development, v1 laptop prototype.** This is an ongoing project, and collaborators are welcome.
 
+Project website: [nullyn.ai](https://nullyn.ai)
+
 Python implementation of the Nullyn AI acoustic feedback suppressor, for the
 v1 laptop prototype and for offline experiments.
 
@@ -32,7 +34,7 @@ engineers.
 
 **In progress**
 
-- **Moving-microphone tracking** — the main open algorithm problem. In simulation the closed loop almost eliminates howl when the mic is still, and does worse than a notch filter when the performer walks.
+- **Moving-microphone tracking** — the main open algorithm problem. SIMULATED (`summary.json`, 07:46 CT, 26 Nov 2026; 575 held-out scenarios): the Nullyn AI closed loop howled in **0.7%** of static-mic runs (690) and **37.6%** of walking-performer runs (1,035). The classic notch howled in **30.7%** of those walking runs. (The classic notch's 34.5% howl rate is for a static mic, not a walking one.)
 - **Real-room tests** of the v1 laptop path, logged with `scripts/record_session.py`. No real-venue numbers yet.
 - **Latency on real laptops**, especially Windows ASIO and macOS CoreAudio, which have not been measured.
 
@@ -229,9 +231,27 @@ processor (690 static microphone, 1,035 walking performer):
 | Walking performer (1,035 runs) | 45.3% | 30.7% | **25.0%** | 37.6% |
 | Fader headroom ≤50% (all / static / walking) | +1.0 / +1.0 / +2.5 dB | +3.5 / +2.5 / +4.5 dB | +5.0 / +4.5 / +5.0 dB | +4.0 / **+15.5** / +2.5 dB |
 
-Moving mics are the open problem. Details, operator and ablation tables,
-run counts and limitations are in `paper/nullyn-algorithm.pdf` (and
-`paper/nullyn-algorithm.md`).
+![SIMULATED howl rate by method for static microphones versus walking performers](docs/img/howl-static-vs-walking.png)
+
+*SIMULATED. Howl rate on the closed-loop steady protocol (`summary.json`, 07:46 CT, 26 Nov 2026): 575 held-out scenarios, 690 static-mic runs and 1,035 walking-performer runs per processor. The Nullyn AI closed loop howled in 0.7% of static runs and 37.6% of walking runs; the classic notch howled in 30.7% of walking runs (its 34.5% rate is static, not walking).*
+
+![SIMULATED fader headroom at or below 50 percent howl risk, static versus walking](docs/img/headroom-static-vs-walking.png)
+
+*SIMULATED. Fader headroom at ≤50% howl risk, same steady protocol and run counts as the chart above (`summary.json`, 07:46 CT). The closed loop reaches +15.5 dB on static mics and +2.5 dB when the performer walks; the classic notch reaches +4.5 dB on the walking runs.*
+
+![SIMULATED overall howl rate on matched steady-protocol runs](docs/img/howl-rate-all.png)
+
+*SIMULATED. Overall howl rate on 1,725 matched runs per processor (575 held-out scenarios, static and walking combined) from `summary.json`, 07:46 CT.*
+
+![Measured per-block CPU time of NullynEngine on the development box](docs/img/cpu-per-block.png)
+
+*Measured offline CPU time of `NullynEngine.process` on an Intel Xeon Processor (8 logical processors, 2.40 GHz, Linux VM), 26 November 2026, as reported in [Minimum laptop requirements](#minimum-laptop-requirements). This is not analog I/O latency and not a venue result. The 48 kHz closed-loop bars show the range of two runs (median 0.356–0.394 ms, p95 3.903–4.405 ms) against a 4.000 ms budget.*
+
+Moving mics are the open problem. On walking runs the closed loop (37.6%)
+did worse than the classic notch (30.7%) and the notch layer alone (25.0%);
+its 0.7% static-mic howl rate is a different condition. Details, operator
+and ablation tables, run counts and limitations are in
+`paper/nullyn-algorithm.pdf` (and `paper/nullyn-algorithm.md`).
 
 This repository does not include simulator sweep dumps.
 
@@ -279,9 +299,13 @@ loop; `nullyn_v0_1` is shipped for comparison and was not adopted).
 
 ## License
 
-The license is **pending**. Krish Moodbidri has not yet chosen between the
-GNU GPL and the MIT License. See `LICENSE`. Do not assume either license
-applies.
+Released under the MIT License, see LICENSE.
+
+## Learn more
+
+- Project website: [nullyn.ai](https://nullyn.ai)
+- This repository, including issues and discussions
+- Maintainer: Krish Moodbidri
 
 ## Contributing
 

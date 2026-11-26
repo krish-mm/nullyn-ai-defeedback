@@ -19,9 +19,17 @@ logs, and embedded/Daisy ports. Issues tagged `help wanted` or
 - The closed-loop canceller lives in `src/nullyn/closedloop/` so that it can
   be left out of a public release if needed. If you change that package, say
   so clearly in the pull request.
-- A license has not been chosen yet (GPL vs MIT is still pending). Do not
-  add a LICENSE text that picks one, and do not assume a license in new
-  files.
+- This project is released under the MIT License. See `LICENSE`.
+
+## Development workflow
+
+Every feature or fix starts with a GitHub issue.
+
+1. Open an issue that describes the work (use the [issue templates](.github/ISSUE_TEMPLATE/) when one fits).
+2. Create a branch from `main` named `feat/<issue#>-short-name` or `fix/<issue#>-short-name`.
+3. Open a pull request against `main` and link it to the issue with `Closes #N` in the PR body. The PR body should explain the change in plain terms.
+4. Bump the version in `pyproject.toml` and `src/nullyn/__init__.py` (`__version__`) when it is warranted: a patch bump for fixes, a minor bump for features.
+5. Only merge to `main` after Krish Moodbidri approves.
 
 ## Set up
 
@@ -52,6 +60,8 @@ Please open an issue first for algorithm changes, especially anything in
 `src/nullyn/closedloop/`.
 
 ## Pull requests
+
+Follow the [Development workflow](#development-workflow): one issue, one branch, a PR that says `Closes #N` and explains the change in plain terms, and no merge to `main` until Krish Moodbidri approves.
 
 - Keep changes focused. One concern per PR when you can.
 - Run `pytest` and `python -m nullyn demo` and paste the output in the PR.
