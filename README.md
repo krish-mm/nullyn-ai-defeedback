@@ -1,5 +1,10 @@
 # Nullyn AI
 
+[![Active development](https://img.shields.io/badge/status-active%20development-2ea44f)](https://github.com/krish-mm/nullyn-ai-defeedback)
+[![v1 laptop prototype](https://img.shields.io/badge/stage-v1%20laptop%20prototype-0969da)](https://github.com/krish-mm/nullyn-ai-defeedback#roadmap)
+
+**Active development, v1 laptop prototype.** This is an ongoing project, and collaborators are welcome.
+
 Python implementation of the Nullyn AI acoustic feedback suppressor, for the
 v1 laptop prototype and for offline experiments.
 
@@ -14,20 +19,57 @@ if needed.
 Maintainer: Krish Moodbidri. Room validation is planned with working FOH
 engineers.
 
-This repository has not been published yet. The closed-loop method should
-not be pushed to a public host until a provisional patent is filed and
-Krish Moodbidri approves.
+## Project status
 
-## Status
+**What works now**
+
+- Installable `nullyn` package with `process(mic_block, ref_block=None)`
+- Notch layer, steered by Nullyn AI v0 or a classic detector
+- Closed-loop canceller (optional package) for when a speaker-feed reference is available
+- Offline WAV CLI, a real-time v1 CLI for a USB audio interface, and a synthetic feedback demo
+- Tests and a short algorithm paper (`paper/nullyn-algorithm.pdf`)
+- Simulated results only, with run counts, in [Results](#results)
+
+**In progress**
+
+- **Moving-microphone tracking** — the main open algorithm problem. In simulation the closed loop almost eliminates howl when the mic is still, and does worse than a notch filter when the performer walks.
+- **Real-room tests** of the v1 laptop path, logged with `scripts/record_session.py`. No real-venue numbers yet.
+- **Latency on real laptops**, especially Windows ASIO and macOS CoreAudio, which have not been measured.
 
 **Every performance number in this repository is simulated**, unless a
 section is explicitly labelled as a real-room measurement. Nothing here has
 been measured in a real venue, on a real microphone or loudspeaker, or on
 the v1 USB-interface laptop path. The closed-loop simulation covers less
-than a fifth of its planned held-out scenarios. Moving microphones are the
-open problem: in simulation the closed loop almost eliminates howl when the
-mic is still, and does worse than a notch filter when the performer walks.
-See [Results](#results) and `paper/nullyn-algorithm.pdf`.
+than a fifth of its planned held-out scenarios. See [Results](#results)
+and `paper/nullyn-algorithm.pdf`.
+
+## Collaborators welcome
+
+If you work in live sound, signal processing, or embedded audio, there is
+room to help. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and open an
+issue with one of the [issue templates](.github/ISSUE_TEMPLATE/) when you
+start something. Look for the `help wanted` and `good first issue` labels.
+
+Concrete areas we need help with:
+
+- **Moving-mic tracking.** Ideas and tests for making the closed loop keep up when a performer walks (foreground/background filters, adaptation control, variable step size). This is the highest-priority algorithm gap.
+- **Windows / macOS latency tests.** Run `nullyn rt` on a real USB interface, report callback times, PortAudio latency, and analog-to-analog delay if you can measure it. These platforms are unmeasured.
+- **Real-room recordings.** Use [`scripts/record_session.py`](scripts/record_session.py) to log latency, gain-before-feedback steps and howl events, then file a [Room test](.github/ISSUE_TEMPLATE/room_test.md) issue. Do not attach recordings of people without their permission.
+- **Embedded / Daisy ports.** The v2 stage is a dedicated circuit running the same algorithms (for example on a Daisy Seed class board). Ports, timing measurements and memory-budget work are useful now, even before a board is frozen.
+
+Bug reports use the [bug report](.github/ISSUE_TEMPLATE/bug_report.md) template; new capability uses the [feature request](.github/ISSUE_TEMPLATE/feature_request.md) template.
+
+## Roadmap
+
+The roadmap has three stages. There are no dates.
+
+| Stage | What it is | What it must prove |
+|---|---|---|
+| **v1: laptop prototype** | The Nullyn AI algorithms running in real time on a laptop, with a USB audio interface providing the microphone input, the optional reference input and the output | That the simulated behaviour holds in real rooms. Measure round-trip latency and the external loop-delay condition. Collect real failures, with working FOH engineers. |
+| **v2: our own circuit** | A dedicated hardware device running the same algorithms | That the latency and compute budgets hold on embedded hardware |
+| **v3: deploy at scale** | Production and wide deployment | Reliability across many venues and operators |
+
+v1 is the current stage.
 
 ## Install
 

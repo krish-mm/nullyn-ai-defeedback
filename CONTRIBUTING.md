@@ -1,10 +1,16 @@
 # Contributing to Nullyn AI
 
-Thank you for wanting to help. This repository is the Python implementation
-of the Nullyn AI feedback-suppression algorithm, maintained by Krish
-Moodbidri. Room validation is done with working FOH engineers; please do
-not submit venue recordings or operator names unless you have their
-permission and Krish has asked for them.
+Thank you for wanting to help. This is an ongoing project, and collaborators
+are welcome. This repository is the Python implementation of the Nullyn AI
+feedback-suppression algorithm, maintained by Krish Moodbidri. Room
+validation is done with working FOH engineers; please do not submit venue
+recordings or operator names unless you have their permission and Krish has
+asked for them.
+
+High-priority areas are listed under [Collaborators welcome](README.md#collaborators-welcome)
+in the README: moving-mic tracking, Windows/macOS latency tests, real-room
+logs, and embedded/Daisy ports. Issues tagged `help wanted` or
+`good first issue` are a good place to start.
 
 ## Before you start
 
