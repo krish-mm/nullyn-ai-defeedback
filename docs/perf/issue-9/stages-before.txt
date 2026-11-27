@@ -1,0 +1,11 @@
+4000 blocks, total process() time 3919.9 ms, mean 0.980 ms/block
+stage                                              calls  total ms      %  ms/call   max ms  ms/block
+afc.yhat (filter, P partitions)                     8000     269.2    6.9    0.034    0.191     0.067
+afc.adapt (PB-FDAF update)                          8000    1575.6   40.2    0.197    0.773     0.394
+afc.lpc+ltp (PEM prewhitening model)                1000     227.0    5.8    0.227    0.648     0.057
+afc.push_ref (ref FFT + prewhiten)                  4000     278.6    7.1    0.070    0.254     0.070
+sidechain.analyze (FFT + peaks + features)          1000     943.9   24.1    0.944   11.132     0.236
+  of which sidechain._features (per candidate)      4733     714.2   18.2    0.151   10.087     0.179
+detector.decide (MLP + persistence)                 1000      35.2    0.9    0.035    0.140     0.009
+notchbank.process (sosfilt, K biquads)              4000     264.5    6.7    0.066    0.318     0.066
+notchbank.tick                                      1000       3.7    0.1    0.004    0.017     0.001
