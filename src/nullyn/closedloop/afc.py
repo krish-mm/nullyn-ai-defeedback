@@ -37,6 +37,20 @@ def afc_block_size(fs, block_ms=DEFAULT_BLOCK_MS):
     return max(8, int(round(block_ms * 1e-3 * fs)))
 
 
+def _ring_push(buf, head, P, row):
+    """Prepend ``row`` to the (P, K) window ``buf[head:head+P]`` in O(K).
+
+    ``buf`` has 2P rows. Returns the new head and the new window view. The
+    window holds exactly the values a shift-by-one would give.
+    """
+    if head == 0:
+        buf[P:] = buf[:P]  # once every P blocks
+        head = P
+    head -= 1
+    buf[head] = row
+    return head, buf[head:head + P]
+
+
 class _NoBank:
     created = []
     n_created = 0
@@ -111,10 +125,20 @@ class ClosedLoopAFC:
         P, K, B = self.P, self.B + 1, self.B
         self.W = np.zeros((P, K), dtype=complex)
         self.W_fast = np.zeros((P, K), dtype=complex)
-        self.X = np.zeros((P, K), dtype=complex)
-        self.Xw = np.zeros((P, K), dtype=complex)
-        self.Xp = np.zeros((P, K))
-        self.Xp0 = np.zeros((P, K))
+        # Partition histories (newest first) live in sliding windows over
+        # buffers of 2P rows: a new block writes one row and moves the window
+        # start back by one, so there is no O(P*K) shift per block. When the
+        # window reaches row 0 it is copied to the upper half once (every P
+        # blocks). self.X etc. are always contiguous (P, K) views.
+        self._Xr = np.zeros((2 * P, K), dtype=complex)
+        self._Xwr = np.zeros((2 * P, K), dtype=complex)
+        self._Xpr = np.zeros((2 * P, K))
+        self._Xp0r = np.zeros((2 * P, K))
+        self._hx = self._hxw = self._hxp = self._hxp0 = P
+        self.X = self._Xr[P:]
+        self.Xw = self._Xwr[P:]
+        self.Xp = self._Xpr[P:]
+        self.Xp0 = self._Xp0r[P:]
         self.prev = np.zeros(B)
         self.prevw = np.zeros(B)
         self.A = np.r_[1.0, np.zeros(self.ord)]
@@ -394,19 +418,17 @@ class ClosedLoopAFC:
         if len(m) != B:
             raise ValueError(f"ClosedLoopAFC.push_ref expects a block of {B} samples, got {len(m)}")
         m = np.clip(m, -self.ref_fs, self.ref_fs)
-        self.X[1:] = self.X[:-1]
-        self.X[0] = np.fft.rfft(np.concatenate([self.prev, m]))
+        self._hx, self.X = _ring_push(self._Xr, self._hx, self.P,
+                                      np.fft.rfft(np.concatenate([self.prev, m])))
         self.prev = m
         if self.pem:
             mw, self.mh_w = self._fir(m, self.mh_w)
-            self.Xw[1:] = self.Xw[:-1]
-            self.Xw[0] = np.fft.rfft(np.concatenate([self.prevw, mw]))
+            self._hxw, self.Xw = _ring_push(self._Xwr, self._hxw, self.P,
+                                            np.fft.rfft(np.concatenate([self.prevw, mw])))
             self.prevw = mw
             src = self.Xw[0]
         else:
             src = self.X[0]
-        self.Xp[1:] = self.Xp[:-1]
-        self.Xp[0] = np.abs(src) ** 2
+        self._hxp, self.Xp = _ring_push(self._Xpr, self._hxp, self.P, np.abs(src) ** 2)
         if self.n_probe and self.kt <= self.n_probe:
-            self.Xp0[1:] = self.Xp0[:-1]
-            self.Xp0[0] = np.abs(self.X[0]) ** 2
+            self._hxp0, self.Xp0 = _ring_push(self._Xp0r, self._hxp0, self.P, np.abs(self.X[0]) ** 2)
