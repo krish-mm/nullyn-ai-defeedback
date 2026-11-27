@@ -20,6 +20,37 @@ def _mono(x, name):
     return x
 
 
+def fifo_delay_samples(n, block):
+    """Samples of delay the closed-loop FIFO adds for callback blocks of ``n``.
+
+    With a reference, the canceller runs on fixed blocks of ``block`` samples.
+    If ``n`` is a multiple of ``block`` every callback is processed in place
+    and nothing is added; otherwise the engine has to hold samples back and
+    pads the start of the output with zeros. Exact for the FIFO in
+    :meth:`NullynEngine.process` (no measurement involved).
+    """
+    n, block = int(n), int(block)
+    if n <= 0 or block <= 0:
+        raise ValueError("n and block must be positive")
+    pending_in = 0
+    ready = 0
+    zeros = 0
+    # The pattern repeats every lcm(n, block) samples; two periods settle it.
+    from math import lcm
+    calls = 2 * lcm(n, block) // n + 2
+    for _ in range(calls):
+        pending_in += n
+        k = pending_in // block
+        pending_in -= k * block
+        ready += k * block
+        if ready < n:
+            zeros += n - ready
+            ready = 0
+        else:
+            ready -= n
+    return zeros
+
+
 class NullynEngine:
     """Block-based streaming processor for the Nullyn AI algorithm.
 
@@ -92,6 +123,15 @@ class NullynEngine:
             proc.name = "nullyn_v0.1"
             return proc
         raise KeyError(f"unknown detector {detector!r}")
+
+    def fifo_delay_samples(self, n, with_reference=True):
+        """Added delay in samples for callback blocks of ``n`` (0 is best).
+
+        Notch-only processing never buffers, so the delay is 0 for any ``n``.
+        """
+        if self.afc is None or not (with_reference or self.mode == "closedloop"):
+            return 0
+        return fifo_delay_samples(n, self.block)
 
     def reset(self):
         self.notch.reset()

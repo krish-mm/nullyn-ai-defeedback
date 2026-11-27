@@ -17,5 +17,5 @@ list devices first, then start a session:
 nullyn rt --list-devices
 python scripts/record_session.py -o session_log.csv \
   --input-device "Scarlett" --output-device "Scarlett" \
-  --mic-channel 1 --ref-channel 2 --blocksize 128 --samplerate 48000
+  --mic-channel 1 --ref-channel 2 --samplerate 48000
 ```
