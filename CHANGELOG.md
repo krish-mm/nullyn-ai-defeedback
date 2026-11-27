@@ -4,6 +4,14 @@ All notable changes to the Nullyn AI package are documented here.
 Version numbers follow [pyproject.toml](pyproject.toml): patch bumps for
 fixes, minor bumps for features.
 
+## 0.3.2 — 2026-11-26
+
+Canceller history without per-block shifts (issue #10). No change in behaviour.
+
+- The partition histories `X`, `Xw`, `Xp` and `Xp0` are now sliding (P, K) windows over buffers of 2P rows. A new block writes one row (O(K)) instead of shifting all P rows (O(P·K)), and the window is copied to the upper half once every P blocks. `self.X` etc. are still contiguous (P, K) arrays, so the filter and update code is unchanged.
+- `push_ref` went from 0.068 ms to 0.038 ms per block at 48 kHz (1.8×, about −30 µs per block). End to end this is within the box's noise: 48 kHz closed-loop median 0.699–0.729 → 0.661–0.727 ms, p95 1.52–1.61 → 1.45–1.63 ms.
+- Bit-exact: a new test checks the windows against the old shift register over 4P+3 blocks, including the sound-check phase. Quality gate on all 575 held-out steady scenarios (SIMULATED): 0 howl flips, 0 dB LSD change, identical output fingerprint.
+
 ## 0.3.1 — 2026-11-26
 
 Faster side-chain features (issue #9). No change in behaviour.

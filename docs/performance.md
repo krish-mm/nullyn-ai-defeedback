@@ -100,7 +100,7 @@ about 2.7 MB in total, O(P·B + M·N_f).
 | Stage | Now | Target | How (issue) |
 |---|---|---|---|
 | LPC autocorrelation | O(N_w²) | O(N_w·p) | compute only p+1 lags |
-| History shift | O(P·K) copy ×3–4 | O(K) | double-buffer ring, view |
+| History shift | O(P·K) copy ×3–4 | O(K) (done in 0.3.2, #10) | sliding window over 2P rows, view |
 | Normaliser Σ_p Xp | O(P·K) ×F | O(K) | running sum, computed once per block |
 | Gradient constraint | O(F·P·B log B) every block | O(F·B log B) + amortised | partitioned/alternating constraint (algorithm change, gated) |
 | Side-chain features | Python loops, polyfit | O(C) vectorised, closed-form slopes | |
@@ -202,3 +202,4 @@ python scripts/quality_gate.py --research ../nullyn --count 575 --out new.json -
 | 1 | #7 | LPC autocorrelation: only p+1 lags, O(N_w²) → O(N_w·p) | 2.26–2.35 / 2.49–2.82 | bit-exact, 0 flips (`docs/perf/issue-7/`) |
 | 2 | #8 | rt CLI default block = engine block, `latency='low'` | DSP unchanged; added engine delay 128 → 0 samples at the default | identical, 0 flips (`docs/perf/issue-8/`) |
 | 3 | #9 | Side-chain features: closed-form slopes, vectorised history, exact small-array std | 1.52–1.61 / 1.76–1.84 | features within 4e-14, 0 flips (`docs/perf/issue-9/`) |
+| 4 | #10 | Canceller history: O(K) sliding window instead of O(P·K) shift | 1.45–1.63 / 1.67–1.95 (push_ref 0.068 → 0.038 ms) | bit-exact, 0 flips (`docs/perf/issue-10/`) |
