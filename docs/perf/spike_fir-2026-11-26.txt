@@ -1,0 +1,3 @@
+prewhiten FIR |Af|=  17 (T=  0): np.convolve    3.0us  sparse cascade A then LTP    3.0us   0.93x  max err 0.0e+00
+prewhiten FIR |Af|= 317 (T=300): np.convolve    7.7us  sparse cascade A then LTP    6.9us   1.09x  max err 4.4e-16
+prewhiten FIR |Af|= 977 (T=960): np.convolve   13.1us  sparse cascade A then LTP   11.6us   1.07x  max err 4.4e-16

@@ -206,6 +206,11 @@ exceeds the buffer, raise `--blocksize`. Plan for several times the median
 load we measured — the p95/max on a noisy host is the number that matters,
 and we did not measure a quiet personal laptop.
 
+Performance work is tracked in the pinned
+[performance tracking issue](https://github.com/krish-mm/nullyn-ai-defeedback/issues/27). The
+per-stage time and space complexity and the v0.2.0 latency baseline are in
+[docs/performance.md](docs/performance.md).
+
 **Unknown, and not claimed here:** Windows ASIO performance, macOS
 CoreAudio performance, USB analog-to-analog round-trip, thermal
 throttling, and driver quality on any particular interface. Those have to
@@ -296,6 +301,10 @@ src/nullyn/              installable package
   data/                  packed v0 / v0.1 weights and classic thresholds
 scripts/record_session.py
 scripts/benchmark_cpu.py
+scripts/bench_latency.py     seeded closed-loop latency benchmark (median/p95/p99/max, jitter)
+scripts/profile_hotspots.py  per-stage timers and cProfile
+scripts/quality_gate.py      held-out howl/LSD check for performance PRs (needs the research workspace)
+docs/performance.md          per-block pipeline, time/space complexity, latency baseline
 paper/                   algorithm note (Markdown + PDF)
 ```
 
