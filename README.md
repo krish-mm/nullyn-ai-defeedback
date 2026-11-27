@@ -3,6 +3,8 @@
 [![Active development](https://img.shields.io/badge/status-active%20development-2ea44f)](https://github.com/krish-mm/nullyn-ai-defeedback)
 [![v1 laptop prototype](https://img.shields.io/badge/stage-v1%20laptop%20prototype-0969da)](https://github.com/krish-mm/nullyn-ai-defeedback#roadmap)
 
+**More gain. No feedback pain.**
+
 **Active development, v1 laptop prototype.** This is an ongoing project, and collaborators are welcome.
 
 Project website: [nullyn.ai](https://nullyn.ai)
