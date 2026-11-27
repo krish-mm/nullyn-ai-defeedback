@@ -13,7 +13,7 @@ from .engine import NullynEngine
 from .models import load_classic_config, load_detector_params
 from .notch import ClassicNotch, NullynV0, NotchBank
 
-__version__ = "0.3.2"
+__version__ = "0.3.3"
 __all__ = [
     "NullynEngine",
     "NullynV0",

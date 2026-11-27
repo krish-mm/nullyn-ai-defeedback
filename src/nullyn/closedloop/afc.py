@@ -191,11 +191,29 @@ class ClosedLoopAFC:
         B = self.B
         return np.fft.irfft(np.sum(self.X * W, axis=0), n=2 * B)[B:]
 
-    def _adapt(self, W, mu, e, fir_state):
-        """Gradient-constrained PEM (or plain) NLMS update of W.
+    def _adapt_shared(self):
+        """Per-block terms both filters' updates share: conj(X) and the normaliser.
+
+        Computed once per block instead of once per filter (v0.3.2 computed
+        them twice with identical inputs).
+        """
+        Xs = self.Xw if self.pem else self.X
+        if getattr(self, "_cXs", None) is None or self._cXs.shape != Xs.shape:
+            # Persistent scratch buffers, so the update allocates no
+            # (P, K) temporaries per block.
+            self._cXs = np.empty_like(Xs)
+            self._G = np.empty_like(Xs)
+        np.conjugate(Xs, out=self._cXs)
+        nrm = np.sum(self.Xp, axis=0)
+        nrm = nrm + self.delta_rel * np.mean(nrm) + 1e-12
+        return self._cXs, nrm
+
+    def _adapt(self, W, mu, e, fir_state, shared=None):
+        """Gradient-constrained PEM (or plain) NLMS update of W, in place.
 
         ``fir_state`` is the prewhitening FIR memory for this filter, so the
-        slow and fast filters do not share residual history.
+        slow and fast filters do not share residual history. ``shared`` is
+        ``_adapt_shared()`` for this block (computed here if omitted).
         """
         if not (self.adapt and mu > 0):
             return W, fir_state
@@ -205,12 +223,14 @@ class ClosedLoopAFC:
         else:
             ew = e
         E = np.fft.rfft(np.concatenate([np.zeros(B), ew]))
-        Xs = self.Xw if self.pem else self.X
-        nrm = np.sum(self.Xp, axis=0)
-        nrm = nrm + self.delta_rel * np.mean(nrm) + 1e-12
-        G = np.conj(Xs) * (E / nrm)[None, :]
+        cXs, nrm = shared if shared is not None else self._adapt_shared()
+        G = np.multiply(cXs, (E / nrm)[None, :], out=self._G)
         gt = np.fft.irfft(G, axis=1, n=2 * B)[:, :B]
-        W = W + mu * np.fft.rfft(np.concatenate([gt, np.zeros_like(gt)], axis=1), axis=1)
+        # rfft(n=2B) zero-pads exactly like concatenating zeros; the in-place
+        # *= and += give the same values as W + mu * R without new (P, K) arrays.
+        R = np.fft.rfft(gt, n=2 * B, axis=1)
+        R *= mu
+        W += R
         return W, fir_state
 
     def _probe_step(self, x):
@@ -349,10 +369,11 @@ class ClosedLoopAFC:
         if self.adapt and self.mu > 0:
             # Adapt the slow filter on the slow residual; the fast filter on
             # its own residual (and a little harder during a path change).
-            self.W, self.eh_w = self._adapt(self.W, self.mu, e_slow, self.eh_w)
+            shared = self._adapt_shared()
+            self.W, self.eh_w = self._adapt(self.W, self.mu, e_slow, self.eh_w, shared)
             if self.tracking:
                 self.W_fast, self.eh_w_fast = self._adapt(
-                    self.W_fast, self.mu_fast_now, e_fast, self.eh_w_fast
+                    self.W_fast, self.mu_fast_now, e_fast, self.eh_w_fast, shared
                 )
                 if self.fast_wins >= self.copy_fast_after and pe_fast < px:
                     self.W = self.W_fast.copy()

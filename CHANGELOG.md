@@ -4,6 +4,14 @@ All notable changes to the Nullyn AI package are documented here.
 Version numbers follow [pyproject.toml](pyproject.toml): patch bumps for
 fixes, minor bumps for features.
 
+## 0.3.3 — 2026-11-27
+
+Cheaper canceller update (issue #11). No change in behaviour.
+
+- The NLMS normaliser `Σ_p Xp` and `conj(X)` are computed once per block and shared by the slow and fast filters, instead of once per filter. The update writes into persistent scratch buffers and updates `W` in place (`rfft(n=2B)` zero-pads instead of concatenating zeros).
+- At 48 kHz the update went from 0.217–0.239 ms to 0.167–0.171 ms per filter call, and the mean block from 0.971–1.034 ms to 0.847–0.870 ms (stage profiler). The peak transient allocation per block went from 799 KiB to 414 KiB at 48 kHz and from 270 KiB to 141 KiB at 16 kHz. End to end, p95/p99 is within the box's noise in this session: 48 kHz closed-loop p95 1.64–1.76 → 1.62–1.79 ms.
+- Bit-exact: a new test checks the update against the 0.3.2 code. Quality gate on all 575 held-out steady scenarios (SIMULATED): 0 howl flips, 0 dB LSD change, identical output fingerprint.
+
 ## 0.3.2 — 2026-11-26
 
 Canceller history without per-block shifts (issue #10). No change in behaviour.

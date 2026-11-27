@@ -203,3 +203,4 @@ python scripts/quality_gate.py --research ../nullyn --count 575 --out new.json -
 | 2 | #8 | rt CLI default block = engine block, `latency='low'` | DSP unchanged; added engine delay 128 → 0 samples at the default | identical, 0 flips (`docs/perf/issue-8/`) |
 | 3 | #9 | Side-chain features: closed-form slopes, vectorised history, exact small-array std | 1.52–1.61 / 1.76–1.84 | features within 4e-14, 0 flips (`docs/perf/issue-9/`) |
 | 4 | #10 | Canceller history: O(K) sliding window instead of O(P·K) shift | 1.45–1.63 / 1.67–1.95 (push_ref 0.068 → 0.038 ms) | bit-exact, 0 flips (`docs/perf/issue-10/`) |
+| 5 | #11 | Canceller update: normaliser and conj(X) once per block, in-place W update, scratch buffers | 1.62–1.79 / 1.85–2.26 vs 1.64–1.76 / 1.93–1.95 for 0.3.2 in the same session (noise; adapt 0.217–0.239 → 0.167–0.171 ms, alloc peak 799 → 414 KiB) | bit-exact, 0 flips (`docs/perf/issue-11/`) |
