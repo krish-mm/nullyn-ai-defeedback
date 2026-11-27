@@ -1,0 +1,33 @@
+{
+ "label": "SIMULATED",
+ "version": "0.2.0",
+ "protocol": "steady held-out, package ClosedLoopAFC",
+ "start": 0,
+ "count": 575,
+ "kw": {
+  "P": 64,
+  "mu": 0.02,
+  "soundcheck_s": 3.0,
+  "tracking": true
+ },
+ "elapsed_s": 430.9,
+ "howl_rate": 0.41182608695652173,
+ "howl_rate_static": 0.15739130434782608,
+ "howl_rate_walking": 0.5814492753623188,
+ "matched_3_gains": {
+  "runs": 1725,
+  "howl": 331,
+  "static": [
+   4,
+   690
+  ],
+  "walking": [
+   327,
+   1035
+  ]
+ },
+ "all_5_gains": {
+  "runs": 2875,
+  "howl": 1184
+ }
+}

@@ -4,6 +4,15 @@ All notable changes to the Nullyn AI package are documented here.
 Version numbers follow [pyproject.toml](pyproject.toml): patch bumps for
 fixes, minor bumps for features.
 
+## Unreleased — performance tooling (issue #6)
+
+No change to the `nullyn` package; tooling and docs only, so no version bump.
+
+- `scripts/bench_latency.py`: seeded closed-loop latency benchmark at 48 kHz and 16 kHz (median, p95, p99, max, jitter, deadline misses, GC, transient allocation peak).
+- `scripts/profile_hotspots.py`: per-stage timers and a cProfile mode.
+- `scripts/quality_gate.py`: replays the SIMULATED held-out steady protocol with the package canceller and compares howl flags, LSD and output against a baseline. On v0.2.0 it reproduces the published counts exactly (331 / 1,725 matched runs, 4 / 690 static, 327 / 1,035 walking).
+- `docs/performance.md`: per-block pipeline, time and space complexity per stage, and the v0.2.0 latency baseline. Tracking issue #27 lists the 20 performance steps in order.
+
 ## 0.2.0 — 2026-11-26
 
 Closed-loop tracking for a moving microphone (GitHub issue #1).

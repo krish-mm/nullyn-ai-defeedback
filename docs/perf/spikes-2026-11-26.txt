@@ -1,0 +1,40 @@
+lpc.autocorr          np.correlate full (baseline)                  786.8us   1.00x  err=0.00e+00 
+lpc.autocorr          17 lag dot products                            15.0us  52.48x  err=0.00e+00 
+lpc.autocorr          sliding_window_view matvec                     39.9us  19.70x  err=2.73e-12 
+lpc.autocorr          FFT (Wiener-Khinchin)                          69.1us  11.39x  err=2.66e-14 
+lpc.autocorr          numba njit loops                               30.0us  26.26x  err=2.73e-12 
+lpc.levinson          scipy solve_toeplitz (baseline)                16.1us   1.00x  err=0.00e+00 
+lpc.levinson          numba Levinson-Durbin                           0.9us  16.95x  err=6.94e-18 
+lpc.levinson          pure numpy Levinson                            78.6us   0.20x  err=1.39e-17 
+ltp.xcorr             np.correlate valid (baseline)                  54.3us   1.00x  err=0.00e+00 
+ltp.xcorr             scipy.signal.correlate fft                     91.0us   0.60x  err=4.26e-14 
+ltp.xcorr             scipy.fft rfft next_fast_len                   42.9us   1.27x  err=7.11e-14 
+ltp.xcorr             sliding_window_view matvec (BLAS)             348.7us   0.16x  err=1.28e-13 
+afc.adapt             numpy.fft baseline (1 filter)                 171.1us   1.00x  err=0.00e+00 
+afc.adapt             numpy: rfft(n=2B) pad, in-place W             173.6us   0.99x  err=0.00e+00 
+afc.adapt             scipy.fft workers=1                           168.9us   1.01x  err=0.00e+00 
+afc.adapt             scipy.fft workers=4                           169.8us   1.01x  err=0.00e+00 
+afc.adapt             pyfftw FFTW_MEASURE planned, preallocated     110.9us   1.54x  err=3.50e-18 
+afc.adapt             scipy.fft complex64 (float32)                 100.8us   1.70x  err=2.26e-09 rel err vs |dW|=1.1e-02
+afc.adapt x2          baseline: two separate adapts (slow+fast)     332.8us   1.00x  err=0.00e+00 
+afc.adapt x2          batched (2,P,K) one FFT call, shared nrm      878.4us   0.38x  err=0.00e+00 
+afc.history           shift P rows (baseline, x3 arrays/blk)          8.2us   1.00x  err=None 
+afc.history           double-buffer ring (view, O(K) write)           0.5us  16.23x  err=None 
+afc.yhat              np.sum(X*W) + irfft (baseline)                 17.1us   1.00x  err=0.00e+00 
+afc.yhat              einsum pk,pk->k                                31.8us   0.54x  err=6.94e-18 
+afc.yhat              numba accumulate                               17.2us   0.99x  err=6.94e-18 
+sidechain.fft         numpy.fft.rfft 3072 (baseline)                 15.8us   1.00x  err=0.00e+00 
+sidechain.fft         scipy.fft.rfft                                 14.7us   1.08x  err=4.32e-14 
+sidechain.fft         pyfftw interfaces (cached)                     11.2us   1.41x  err=3.55e-14 
+sidechain.logpow      10log10(abs(X)**2) (baseline)                   6.7us   1.00x  err=0.00e+00 
+sidechain.logpow      re^2+im^2 (no sqrt)                             6.1us   1.09x  err=7.11e-15 
+features.slope        2x np.polyfit (baseline, per candidate)        31.3us   1.00x  err=0.00e+00 
+features.slope        closed-form least squares                       1.7us  18.09x  err=8.33e-17 
+notch.sosfilt K=4     scipy sosfilt (baseline)                       19.0us   1.00x  err=0.00e+00 
+notch.sosfilt K=4     numba DF2T cascade, in-place zi                 3.2us   5.88x  err=0.00e+00 
+notch.sosfilt K=12    scipy sosfilt (baseline)                       22.0us   1.00x  err=0.00e+00 
+notch.sosfilt K=12    numba DF2T cascade, in-place zi                 7.6us   2.88x  err=0.00e+00 
+notch.sosfilt K=24    scipy sosfilt (baseline)                       26.2us   1.00x  err=0.00e+00 
+notch.sosfilt K=24    numba DF2T cascade, in-place zi                14.3us   1.83x  err=0.00e+00 
+engine.buffering      concatenate FIFOs (baseline)                    1.4us   1.00x  err=None 
+engine.buffering      fast path n==B (no copies)                      0.1us  24.14x  err=None 
