@@ -349,7 +349,11 @@ class ClosedLoopAFC:
 
     def _update_lpc(self):
         w = self.eh * self.lpc_win
-        rr = np.correlate(w, w, "full")[len(w) - 1:len(w) + self.ord]
+        # Only lags 0..ord are needed. np.correlate(w, w, "full") computed all
+        # 2*len(w)-1 lags (O(len(w)^2)); these p+1 dot products are O(len(w)*p)
+        # and give the same values (each lag is the same dot product).
+        n = len(w)
+        rr = np.array([np.dot(w[:n - k], w[k:]) for k in range(self.ord + 1)])
         if rr[0] > 1e-12:
             rr = rr * np.exp(-0.5 * (0.01 * np.arange(self.ord + 1)) ** 2)
             rr[0] *= 1.0001

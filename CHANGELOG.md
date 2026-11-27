@@ -4,6 +4,14 @@ All notable changes to the Nullyn AI package are documented here.
 Version numbers follow [pyproject.toml](pyproject.toml): patch bumps for
 fixes, minor bumps for features.
 
+## 0.2.1 — 2026-11-26
+
+Faster LPC update in the closed-loop canceller (issue #7). No change in behaviour.
+
+- `ClosedLoopAFC._update_lpc` now computes only the 17 autocorrelation lags it uses instead of all 6,143 (`np.correlate(..., "full")`): O(N_w·p) instead of O(N_w²). The autocorrelation step is 52× faster at 48 kHz, and the whole LPC/LTP update went from 1.02 ms to 0.27 ms per call.
+- 48 kHz closed-loop benchmark (same seed, same box, interleaved runs): p95 per block 2.96–3.16 ms → 2.26–2.35 ms, p99 3.43–3.63 ms → 2.49–2.82 ms, blocks over the 4 ms budget 32–48 → 3–14 of 7,500. Median unchanged (~0.77 ms).
+- Bit-exact: the quality gate on all 575 held-out steady scenarios (2,875 runs, SIMULATED) shows 0 howl flips, 0 dB LSD change and an identical output fingerprint (RMS and sampled values) on every run.
+
 ## Unreleased — performance tooling (issue #6)
 
 No change to the `nullyn` package; tooling and docs only, so no version bump.
