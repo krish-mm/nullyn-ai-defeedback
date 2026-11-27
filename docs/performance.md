@@ -68,7 +68,7 @@ instrumentation adds overhead, so read the shares, not the absolute values).
 | `_yhat` ×F | O(F·(P·K + B log B)) | — | O(P·K) temp product | ~6% |
 | Path-change logic, ERLE, γ | O(B) | O(1) | O(B) | small |
 | `_adapt` ×F: prewhiten FIR, error FFT, normaliser Σ_p Xp, gradient, **P IFFTs + P FFTs** (gradient constraint) | O(F·(B·\|A_f\| + P·K + P·B log B)) | W, W_fast: 2·P·K complex | O(P·B) real + O(P·K) complex, several copies | ~34% |
-| `_update_lpc` (every 4th block): autocorrelation via `np.correlate(w, w, "full")` | **O(N_w²)** (all 2N_w−1 lags computed, p+1 used) | O(N_w) | O(N_w) | ~20% (incl. LTP) |
+| `_update_lpc` (every 4th block): autocorrelation via `np.correlate(w, w, "full")` | **O(N_w²)** in v0.2.0 (all 2N_w−1 lags computed, p+1 used); O(N_w·p) from 0.2.1 (#7) | O(N_w) | O(N_w) | ~20% (incl. LTP) |
 | … Levinson (`solve_toeplitz`) | O(p²) | O(p) | O(p) | |
 | … LTP: residual + cross-correlation | O(N_w·p + L_c·L_r) | O(\|A_f\|) | O(L_c + L_r) | |
 | `SideChain.analyze` (every H samples): FFT, log power, peak picking, run tracking (`np.roll` ×6) | O(N_f log N_f + N_b) | hist, fr_hist: 2·M·N_b float; pk_hist: M·N_b bool | O(N_b) several arrays | ~21% |
@@ -193,3 +193,10 @@ python scripts/profile_hotspots.py --cprofile --top 30     # function-level
 python scripts/quality_gate.py --research ../nullyn --count 575 --out base.json
 python scripts/quality_gate.py --research ../nullyn --count 575 --out new.json --compare base.json
 ```
+
+## 8. Progress log
+
+| Step | Issue | Change | 48 kHz closed loop p95 / p99 (ms) | Quality gate |
+|---|---|---|---|---|
+| baseline | — | v0.2.0 | 2.96–3.16 / 3.43–3.63 | 331 / 1,725 matched howls (reference) |
+| 1 | #7 | LPC autocorrelation: only p+1 lags, O(N_w²) → O(N_w·p) | 2.26–2.35 / 2.49–2.82 | bit-exact, 0 flips (`docs/perf/issue-7/`) |

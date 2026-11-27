@@ -1,0 +1,13 @@
+{
+ "runs": 2875,
+ "howl_base": 1184,
+ "howl_new": 1184,
+ "howl_flips": [],
+ "lsd_delta_median_db": 0.0,
+ "lsd_delta_max_db": 0.0,
+ "u_head_max_abs_delta": 0.0,
+ "u_rms_max_rel_delta": 0.0,
+ "pass": true,
+ "label": "SIMULATED",
+ "protocol": "575 held-out steady scenarios x 5 gains, package ClosedLoopAFC P=64 mu=0.02 soundcheck_s=3 tracking=True"
+}
