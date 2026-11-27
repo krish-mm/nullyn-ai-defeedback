@@ -145,9 +145,15 @@ nullyn rt \
   --mic-channel 1 \
   --ref-channel 2 \
   --output-channel 1 \
-  --samplerate 48000 \
-  --blocksize 128
+  --samplerate 48000
 ```
+
+With a reference channel the callback block defaults to the engine's 4 ms
+block (192 samples at 48 kHz). Any block that is not a multiple of it makes
+the engine hold samples back: 128 samples (2.67 ms) of added delay with a
+64-, 128- or 256-sample callback at 48 kHz, and none with 192 or 384. The
+CLI prints that FIFO delay and warns when it is not zero. PortAudio is asked
+for `--latency low` by default (`high` or a number of seconds also work).
 
 The command prints the callback block size in milliseconds, PortAudio's
 reported input and output latency if the driver provides it, and running
@@ -201,10 +207,11 @@ meet the budget almost every block, not on average.
 
 **Practical reading, with headroom.** A 64-bit laptop that can run Python
 3.10+ should handle the notch path with a large median margin on a machine
-in this class. For closed-loop v1, start at 48 kHz with a 128–256 sample
-callback (about 2.7–5.3 ms of buffer latency), close other heavy
+in this class. For closed-loop v1, start at 48 kHz with the default
+192-sample callback (4 ms, no added engine delay), close other heavy
 applications, and watch the callback times that `nullyn rt` prints. If p95
-exceeds the buffer, raise `--blocksize`. Plan for several times the median
+exceeds the buffer, raise `--blocksize` to 384, a multiple of the engine
+block, so the engine still adds no delay. Plan for several times the median
 load we measured — the p95/max on a noisy host is the number that matters,
 and we did not measure a quiet personal laptop.
 
@@ -282,7 +289,7 @@ nullyn rt --list-devices
 python scripts/record_session.py -o session_log.csv \
   --input-device "Scarlett" --output-device "Scarlett" \
   --mic-channel 1 --ref-channel 2 \
-  --blocksize 128 --samplerate 48000
+  --samplerate 48000
 ```
 
 During the session: `g 3` logs a +3 dB gain step, `h` logs that a howl was

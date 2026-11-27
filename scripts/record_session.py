@@ -35,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import numpy as np
 
-from nullyn.cli import _resolve_device, _require_sounddevice
+from nullyn.cli import _resolve_device, _require_sounddevice, parse_latency, resolve_blocksize
 from nullyn.engine import NullynEngine
 from nullyn.features import SideChain
 from nullyn.notch import NullynV0
@@ -54,7 +54,9 @@ def main(argv=None):
     p.add_argument("--mic-channel", type=int, default=1)
     p.add_argument("--ref-channel", type=int, default=None)
     p.add_argument("--output-channel", type=int, default=1)
-    p.add_argument("--blocksize", type=int, default=128)
+    p.add_argument("--blocksize", type=int, default=None,
+                   help="callback block (default: engine block with a reference, else 128)")
+    p.add_argument("--latency", default="low", help="PortAudio latency hint: low, high, or seconds")
     p.add_argument("--samplerate", type=int, default=48000)
     p.add_argument("--mode", choices=("auto", "notch", "closedloop"), default="auto")
     p.add_argument("--detector", default="nullyn_v0",
@@ -68,18 +70,19 @@ def main(argv=None):
     in_dev = _resolve_device(sd, args.input_device, "input")
     out_dev = _resolve_device(sd, args.output_device, "output")
     fs = int(args.samplerate)
-    blocksize = int(args.blocksize)
     mic_ch = int(args.mic_channel)
     ref_ch = args.ref_channel
     out_ch = int(args.output_channel)
-    budget_ms = 1000.0 * blocksize / fs
-
     mode = args.mode
     if mode == "auto" and ref_ch is None:
         mode = "notch"
 
     engine = NullynEngine(fs=fs, mode=mode, detector=args.detector,
                           soundcheck_s=args.soundcheck or 0.0)
+    use_ref = mode in ("closedloop", "auto") and ref_ch is not None
+    blocksize, fifo_delay = resolve_blocksize(engine, args.blocksize, use_ref)
+    latency = parse_latency(args.latency)
+    budget_ms = 1000.0 * blocksize / fs
     # A second side-chain + v0 model, used only for logging (does not change audio).
     logger_sc = SideChain(fs)
     logger_det = NullynV0(model="v0" if args.detector != "nullyn_v0.1" else "v0.1", fs=fs)
@@ -144,7 +147,8 @@ def main(argv=None):
 
     log(event="start", note=(
         f"input={in_info['name']!s}; output={out_info['name']!s}; "
-        f"fs={fs}; block={blocksize}; mode={mode}; detector={args.detector}; "
+        f"fs={fs}; block={blocksize}; fifo_delay_samples={fifo_delay}; latency={latency}; "
+        f"mode={mode}; detector={args.detector}; "
         f"zone=America/Chicago; this file is a log, not a published result"
     ))
     stream = sd.Stream(
@@ -154,6 +158,7 @@ def main(argv=None):
         channels=(n_in, n_out),
         dtype="float32",
         callback=callback,
+        latency=latency,
     )
     print(f"recording session log -> {out_path}")
     print(f"  in:  {in_info['name']}  mic ch {mic_ch}"

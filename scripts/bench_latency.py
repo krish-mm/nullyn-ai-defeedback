@@ -89,11 +89,13 @@ SCENARIOS = {
 }
 
 
-def run_scenario(fs, mode, detector, name, seconds, warmup_s=0.5, track_alloc=False):
+def run_scenario(fs, mode, detector, name, seconds, warmup_s=0.5, track_alloc=False, callback_block=None):
     walking, gain_db, delay_ms, rt60 = SCENARIOS[name]
     rng = np.random.default_rng(SEED + sum(map(ord, name)))      # stable across processes
     eng = NullynEngine(fs=fs, mode=mode, detector=detector, soundcheck_s=0.0)
     B = eng.block if mode != "notch" else max(8, int(round(4e-3 * fs)))
+    if callback_block:
+        B = int(callback_block)  # callback size; the engine FIFO re-blocks internally
     n = int(seconds * fs) // B * B
     src = _speechlike(n, fs, rng)
     h0 = _room_ir(fs, rng, delay_ms, rt60)
@@ -172,6 +174,8 @@ def main(argv=None):
     ap.add_argument("--config", default=None, help="only fs:mode, e.g. 48000:closedloop")
     ap.add_argument("--no-alloc", action="store_true", help="skip the tracemalloc pass")
     ap.add_argument("--json", default=None, help="write results JSON here")
+    ap.add_argument("--callback-block", type=int, default=None,
+                    help="callback size passed to process() (default: the engine block)")
     ap.add_argument("--label", default=None)
     ap.add_argument("--gc", choices=["on", "off", "freeze"], default="on",
                     help="garbage collector during the timed pass (default on, as in v0.2.0)")
@@ -193,6 +197,7 @@ def main(argv=None):
     except ImportError:
         pass
     meta["gc"] = a.gc
+    meta["callback_block"] = a.callback_block
     if a.gc == "freeze":
         gc.collect()
         gc.freeze()
@@ -204,7 +209,7 @@ def main(argv=None):
         B = None
         for _ in range(a.repeats):
             for name in SCENARIOS:
-                r = run_scenario(fs, mode, det, name, secs)
+                r = run_scenario(fs, mode, det, name, secs, callback_block=a.callback_block)
                 B = r["B"]
                 pooled.append(r["times"])
                 per.setdefault(name, dict(gc=0, stats=r["stats"], out_rms=r["out_rms"]))
@@ -218,7 +223,7 @@ def main(argv=None):
                             for k, v in per.items()}
         if not a.no_alloc:
             tracemalloc.start()
-            pk = np.concatenate([run_scenario(fs, mode, det, n, min(secs, 2.0), track_alloc=True)["peak_bytes"]
+            pk = np.concatenate([run_scenario(fs, mode, det, n, min(secs, 2.0), track_alloc=True, callback_block=a.callback_block)["peak_bytes"]
                                  for n in SCENARIOS])
             tracemalloc.stop()
             row["alloc_peak_kib_median"] = float(np.median(pk) / 1024)

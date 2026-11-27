@@ -200,3 +200,4 @@ python scripts/quality_gate.py --research ../nullyn --count 575 --out new.json -
 |---|---|---|---|---|
 | baseline | — | v0.2.0 | 2.96–3.16 / 3.43–3.63 | 331 / 1,725 matched howls (reference) |
 | 1 | #7 | LPC autocorrelation: only p+1 lags, O(N_w²) → O(N_w·p) | 2.26–2.35 / 2.49–2.82 | bit-exact, 0 flips (`docs/perf/issue-7/`) |
+| 2 | #8 | rt CLI default block = engine block, `latency='low'` | DSP unchanged; added engine delay 128 → 0 samples at the default | identical, 0 flips (`docs/perf/issue-8/`) |

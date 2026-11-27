@@ -4,6 +4,15 @@ All notable changes to the Nullyn AI package are documented here.
 Version numbers follow [pyproject.toml](pyproject.toml): patch bumps for
 fixes, minor bumps for features.
 
+## 0.3.0 — 2026-11-26
+
+Real-time CLI defaults that add no engine delay (issue #8). Minor bump: the `nullyn rt` default changes.
+
+- With a reference channel, `nullyn rt` and `scripts/record_session.py` now default the callback block to the engine's 4 ms block (192 samples at 48 kHz) instead of 128. At 48 kHz a 128-sample callback made the engine FIFO add **128 samples (2.67 ms)** of delay; the default now adds **0**. Notch-only keeps 128.
+- New `--latency` option (default `low`; `high` or seconds also work). It is passed to PortAudio, which defaulted to `high` before. The real-world effect depends on the driver and was not measured on hardware.
+- The CLI prints the engine FIFO delay and warns when a `--blocksize` is not a multiple of the engine block. New `NullynEngine.fifo_delay_samples(n)` and `nullyn.engine.fifo_delay_samples(n, block)`.
+- No DSP change: quality gate on all 575 held-out steady scenarios (SIMULATED) is identical to 0.2.1 (0 howl flips, 0 dB LSD change).
+
 ## 0.2.2 — 2026-11-26
 
 Tagline update (GitHub issue #28).

@@ -126,6 +126,43 @@ def _resolve_device(sd, spec, kind):
     return hits[0]
 
 
+# Notch-only callbacks have no FIFO, so a smaller block is pure win; 128 at
+# 48 kHz (2.67 ms) matches the v0.2 default.
+NOTCH_DEFAULT_BLOCKSIZE = 128
+
+
+def resolve_blocksize(engine, requested, use_ref):
+    """Pick the callback block and report the FIFO delay it implies.
+
+    With a reference the default is the engine block (4 ms), which adds no
+    FIFO delay. An explicit ``requested`` value is honoured as given.
+    Returns ``(blocksize, fifo_delay_samples)``.
+    """
+    if requested is None:
+        blocksize = engine.block if use_ref else NOTCH_DEFAULT_BLOCKSIZE
+    else:
+        blocksize = int(requested)
+    if blocksize <= 0:
+        raise SystemExit("--blocksize must be positive")
+    return blocksize, engine.fifo_delay_samples(blocksize, with_reference=use_ref)
+
+
+def parse_latency(value):
+    """PortAudio latency: 'low', 'high', or seconds as a number."""
+    if value is None:
+        return "low"
+    v = str(value).strip().lower()
+    if v in ("low", "high"):
+        return v
+    try:
+        x = float(v)
+    except ValueError:
+        raise SystemExit("--latency must be 'low', 'high' or a number of seconds") from None
+    if x <= 0:
+        raise SystemExit("--latency in seconds must be positive")
+    return x
+
+
 def cmd_rt(args):
     sd = _require_sounddevice()
     if args.list_devices:
@@ -134,7 +171,6 @@ def cmd_rt(args):
     in_dev = _resolve_device(sd, args.input_device, "input")
     out_dev = _resolve_device(sd, args.output_device, "output")
     fs = int(args.samplerate)
-    blocksize = int(args.blocksize)
     mic_ch = int(args.mic_channel)
     ref_ch = None if args.ref_channel is None else int(args.ref_channel)
     out_ch = int(args.output_channel)
@@ -166,6 +202,10 @@ def cmd_rt(args):
         soundcheck_s=args.soundcheck or 0.0,
     )
 
+    use_ref = mode in ("closedloop", "auto") and ref_ch is not None
+    blocksize, fifo_delay = resolve_blocksize(engine, args.blocksize, use_ref)
+    latency = parse_latency(args.latency)
+
     in_channels = n_in_needed
     out_channels = max(out_ch, 2 if out_info["max_output_channels"] >= 2 else 1)
     times = []
@@ -196,6 +236,7 @@ def cmd_rt(args):
         channels=(in_channels, out_channels),
         dtype="float32",
         callback=callback,
+        latency=latency,
     )
     buf_ms = 1000.0 * blocksize / fs
     print("Nullyn AI real-time (v1 laptop prototype)")
@@ -204,6 +245,13 @@ def cmd_rt(args):
     print(f"  output device: {out_info['name']}  (out ch {out_ch})")
     print(f"  sample rate: {fs} Hz, callback block: {blocksize} samples ({buf_ms:.2f} ms)")
     print(f"  engine AFC/notch block: {engine.block} samples ({1000.0 * engine.block / fs:.2f} ms)")
+    print(f"  requested PortAudio latency: {latency!r}")
+    if fifo_delay:
+        print(f"  WARNING: callback block {blocksize} is not a multiple of the engine block "
+              f"{engine.block}; the engine FIFO adds {fifo_delay} samples "
+              f"({1000.0 * fifo_delay / fs:.2f} ms). Use --blocksize {engine.block} (or a multiple).")
+    else:
+        print("  engine FIFO delay: 0 samples")
     print(f"  mode: {mode}, detector: {args.detector}")
     print("  Ctrl-C to stop.")
     with stream:
@@ -291,7 +339,11 @@ def build_parser():
     sp.add_argument("--ref-channel", type=int, default=None,
                     help="1-based input channel for the speaker-feed reference (enables closed loop)")
     sp.add_argument("--output-channel", type=int, default=1, help="1-based output channel")
-    sp.add_argument("--blocksize", type=int, default=128, help="callback block size in samples")
+    sp.add_argument("--blocksize", type=int, default=None,
+                    help="callback block size in samples (default: the engine block, 192 at 48 kHz, "
+                         "when a reference is used, so the engine adds no FIFO delay; 128 for notch only)")
+    sp.add_argument("--latency", default="low",
+                    help="PortAudio latency hint: low (default), high, or seconds")
     sp.add_argument("--samplerate", type=int, default=48000)
     sp.add_argument("--soundcheck", type=float, default=0.0,
                     help="seconds of closed-loop probe identification before passing audio")
