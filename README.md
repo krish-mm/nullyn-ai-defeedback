@@ -4,7 +4,6 @@
 [![v1 laptop prototype](https://img.shields.io/badge/stage-v1%20laptop%20prototype-0969da)](https://github.com/krish-mm/nullyn-ai-defeedback#roadmap)
 
 **More gain. No feedback pain.**
-Without wrecking the sound.
 
 **Active development, v1 laptop prototype.** This is an ongoing project, and collaborators are welcome.
 

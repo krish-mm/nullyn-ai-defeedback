@@ -8,7 +8,7 @@ fixes, minor bumps for features.
 
 Tagline update (GitHub issue #28).
 
-- README now leads with the tagline “More gain. No feedback pain.” and the supporting line “Without wrecking the sound.”
+- README now leads with the tagline “More gain. No feedback pain.”
 - Package description in `pyproject.toml` includes the tagline. No algorithm or API changes.
 
 ## 0.2.1 — 2026-11-26
