@@ -82,3 +82,28 @@ def test_history_ring_matches_shift_register():
         for n, r in ref.items():
             np.testing.assert_array_equal(getattr(afc, n), r, err_msg=f"{n} after block {i}")
             assert getattr(afc, n).flags.c_contiguous
+
+
+def test_adapt_matches_v032_update():
+    """Shared normaliser + rfft(n=2B) + in-place W must equal the v0.3.2 update (#11)."""
+    afc = ClosedLoopAFC(fs=16000, fallback=False, P=6, soundcheck_s=0.0)
+    B = afc.B
+    rng = np.random.default_rng(11)
+    for _ in range(3 * afc.P):
+        afc.process(rng.standard_normal(B) * 0.05)
+        afc.push_ref(rng.standard_normal(B) * 0.05)
+    W0 = rng.standard_normal(afc.W.shape) + 1j * rng.standard_normal(afc.W.shape)
+    e = rng.standard_normal(B) * 0.01
+    st = afc.eh_w.copy()
+    # v0.3.2 reference
+    ew, _ = afc._fir(e, st.copy())
+    E = np.fft.rfft(np.concatenate([np.zeros(B), ew]))
+    nrm = np.sum(afc.Xp, axis=0)
+    nrm = nrm + afc.delta_rel * np.mean(nrm) + 1e-12
+    G = np.conj(afc.Xw) * (E / nrm)[None, :]
+    gt = np.fft.irfft(G, axis=1, n=2 * B)[:, :B]
+    ref = W0 + 0.02 * np.fft.rfft(np.concatenate([gt, np.zeros_like(gt)], axis=1), axis=1)
+    W = W0.copy()
+    out, _ = afc._adapt(W, 0.02, e, st.copy(), afc._adapt_shared())
+    assert out is W
+    np.testing.assert_array_equal(out, ref)
