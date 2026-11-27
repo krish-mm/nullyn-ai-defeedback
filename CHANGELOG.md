@@ -4,6 +4,14 @@ All notable changes to the Nullyn AI package are documented here.
 Version numbers follow [pyproject.toml](pyproject.toml): patch bumps for
 fixes, minor bumps for features.
 
+## 0.3.1 — 2026-11-26
+
+Faster side-chain features (issue #9). No change in behaviour.
+
+- `SideChain._features` fits its two level slopes in closed form instead of with `np.polyfit`, reads the 8-frame history with one fancy-indexed slice instead of Python list comprehensions, and uses a small exact `np.std` replacement. Per candidate it went from 0.151 ms to 0.050 ms (3.0×), and the whole side-chain frame from 0.944 ms to 0.457 ms at 48 kHz.
+- Benchmark (same seed, interleaved with 0.3.0): 48 kHz closed-loop p95 2.04–2.13 ms → 1.52–1.61 ms, p99 2.39–2.47 ms → 1.76–1.84 ms; 16 kHz p95 1.454 → 0.918 ms; notch-only 48 kHz p95 1.153 → 0.581 ms.
+- Features match the old code to within 4e-14 (only the two slopes differ at all). Quality gate on all 575 held-out steady scenarios (SIMULATED): 0 howl flips, 0 dB LSD change, identical output fingerprint.
+
 ## 0.3.0 — 2026-11-26
 
 Real-time CLI defaults that add no engine delay (issue #8). Minor bump: the `nullyn rt` default changes.

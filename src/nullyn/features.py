@@ -10,6 +10,8 @@ Window and hop lengths scale with sample rate so that a 64 ms window and
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 
 from .constants import RESEARCH_FS
@@ -19,6 +21,23 @@ HOP_AT_16K = 256    # 16 ms hop
 NCAND = 5           # candidate peaks per frame
 HIST = 64           # frames of history (~1 s)
 FMIN, FMAX = 80.0, 7800.0
+
+_J8 = np.arange(8)
+_X4 = np.arange(4) - 1.5      # centred abscissae for the closed-form slopes
+_X8 = np.arange(8) - 3.5
+_D4 = float(_X4 @ _X4)
+_D8 = float(_X8 @ _X8)
+
+def _std(x):
+    """np.std(x) for a short 1-D float array, without the ufunc-dispatch overhead.
+
+    Same operations in the same order as NumPy's _var (sum/n, subtract,
+    square, sum/n, sqrt), so the result is identical.
+    """
+    n = x.shape[0]
+    d = x - x.sum() / n
+    return math.sqrt((d * d).sum() / n)
+
 
 FEATURE_NAMES = [
     "papr", "pnpr", "phpr", "subhr", "ipmp", "slope4", "slope8", "fstd", "amstd",
@@ -137,27 +156,31 @@ class SideChain:
             j = int(round(j))
             if j < 1 or j >= nb - 1:
                 return -120.0
-            return max(P[j - 1], P[j], P[j + 1])
+            return P[j - 1:j + 2].max()
 
-        neigh = np.r_[P[max(k - 8, 0):max(k - 3, 0)], P[k + 4:k + 9]]
+        neigh = np.concatenate((P[max(k - 8, 0):max(k - 3, 0)], P[k + 4:k + 9]))
         pnpr = P[k] - 10 * np.log10(np.mean(10 ** (neigh / 10)) + 1e-12)
-        harm = [lv(h * (k + dk)) for h in (2, 3, 4)]
-        phpr = P[k] - max(harm)
-        subhr = P[k] - lv(0.5 * (k + dk))
-        idx = [(self.t - j) % HIST for j in range(8)]
-        loc = np.array([self.hist[ii][max(k - 1, 0):k + 2].max() for ii in idx])
-        pk_near = np.array([self.pk_hist[ii][max(k - 1, 0):k + 2].any() for ii in idx[:5]])
-        ipmp = float(pk_near.mean())
-        slope4 = float(np.polyfit(np.arange(4), loc[:4][::-1], 1)[0])
-        slope8 = float(np.polyfit(np.arange(8), loc[::-1], 1)[0])
-        fpos = []
-        for ii in idx[:6]:
-            row = self.pk_hist[ii][max(k - 1, 0):k + 2]
-            if row.any():
-                j = max(k - 1, 0) + int(np.argmax(row))
-                fpos.append(j + self.fr_hist[ii][j])
-        fstd = float(np.std(fpos)) if len(fpos) > 1 else 1.0
-        amstd = float(np.std(loc))
+        kf = k + dk
+        phpr = P[k] - max(lv(2 * kf), lv(3 * kf), lv(4 * kf))
+        subhr = P[k] - lv(0.5 * kf)
+        # Last 8 frames (newest first), gathered once with fancy indexing.
+        idx = (self.t - _J8) % HIST
+        lo, hi = max(k - 1, 0), k + 2
+        loc = self.hist[idx, lo:hi].max(axis=1)
+        pk_rows = self.pk_hist[idx[:6], lo:hi]
+        has_pk = pk_rows.any(axis=1)
+        ipmp = np.count_nonzero(has_pk[:5]) / 5.0
+        # Least-squares slopes in closed form (same fit as np.polyfit(deg=1)).
+        slope4 = float(_X4 @ loc[3::-1]) / _D4
+        slope8 = float(_X8 @ loc[::-1]) / _D8
+        if has_pk.any():
+            rows = np.nonzero(has_pk)[0]
+            j = lo + np.argmax(pk_rows[rows], axis=1)
+            fpos = j + self.fr_hist[idx[rows], j]
+        else:
+            fpos = ()
+        fstd = _std(fpos) if len(fpos) > 1 else 1.0
+        amstd = _std(loc)
         thr = P[k] - 6
         l = k
         while l > 1 and P[l - 1] > thr and k - l < 10:
@@ -166,7 +189,7 @@ class SideChain:
         while r < nb - 2 and P[r + 1] > thr and r - k < 10:
             r += 1
         width = float(r - l + 1)
-        f_hz = (k + dk) * self.fs / self.nfft
+        f_hz = kf * self.fs / self.nfft
         return dict(k=k, f=f_hz, x=np.array([
             P[k] - meanP, pnpr, phpr, subhr, ipmp, slope4, slope8, fstd, amstd,
             min(self.run[k], HIST), self.birth_flux[k], width, np.log2(f_hz / 1000),
