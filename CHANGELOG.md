@@ -4,6 +4,13 @@ All notable changes to the Nullyn AI package are documented here.
 Version numbers follow [pyproject.toml](pyproject.toml): patch bumps for
 fixes, minor bumps for features.
 
+## 0.2.2 — 2026-11-26
+
+Tagline update (GitHub issue #28).
+
+- README now leads with the tagline “More gain. No feedback pain.” and the supporting line “Without wrecking the sound.”
+- Package description in `pyproject.toml` includes the tagline. No algorithm or API changes.
+
 ## 0.2.1 — 2026-11-26
 
 Faster LPC update in the closed-loop canceller (issue #7). No change in behaviour.
