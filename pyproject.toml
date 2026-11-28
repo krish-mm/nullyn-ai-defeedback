@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nullyn"
-version = "0.3.3"
+version = "0.4.0"
 description = "Nullyn AI acoustic feedback suppression for live sound. More gain. No feedback pain."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -21,6 +21,7 @@ dependencies = [
 
 [project.optional-dependencies]
 realtime = ["sounddevice>=0.4"]
+fast = ["numba>=0.57"]
 dev = ["pytest>=7.0", "sounddevice>=0.4", "matplotlib>=3.8"]
 
 [project.scripts]

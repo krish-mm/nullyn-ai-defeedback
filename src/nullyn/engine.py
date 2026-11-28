@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from ._accel import warmup as _accel_warmup
 from .constants import DEFAULT_BLOCK_MS, RESEARCH_FS
 from .notch import ClassicNotch, NullynV0
 
@@ -108,6 +109,7 @@ class NullynEngine:
                 )
                 self.block = self.afc.B
         self.reset()
+        _accel_warmup()
 
     def _make_detector(self, detector, kw):
         bank_kw = {k: kw[k] for k in (

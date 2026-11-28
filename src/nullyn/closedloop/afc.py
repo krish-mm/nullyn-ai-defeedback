@@ -26,7 +26,7 @@ repository until a provisional patent is filed.
 from __future__ import annotations
 
 import numpy as np
-from scipy.linalg import solve_toeplitz
+from nullyn._accel import levinson_scipy as levinson, warmup as _accel_warmup
 
 from ..constants import DEFAULT_BLOCK_MS, RESEARCH_FS
 from ..notch import NullynV0
@@ -120,6 +120,7 @@ class ClosedLoopAFC:
         self._thr0 = getattr(self.inner, "thr", None)
         self._need0 = getattr(self.inner, "need", None)
         self.reset()
+        _accel_warmup()
 
     def reset(self):
         P, K, B = self.P, self.B + 1, self.B
@@ -403,7 +404,11 @@ class ClosedLoopAFC:
             rr = rr * np.exp(-0.5 * (0.01 * np.arange(self.ord + 1)) ** 2)
             rr[0] *= 1.0001
             try:
-                a = solve_toeplitz(rr[:-1], -rr[1:])
+                # SciPy's Levinson (solve_toeplitz), not the numba kernel:
+                # the kernel is within ~1e-16 on typical frames, but switching
+                # to it moved LSD on already-howling quality-gate runs by up
+                # to 7.5 dB (0 howl flips). See issue #13.
+                a = levinson(rr)
                 self.A = np.r_[1.0, a]
             except Exception:
                 pass

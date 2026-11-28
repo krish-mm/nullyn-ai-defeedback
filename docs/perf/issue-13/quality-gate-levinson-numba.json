@@ -1,0 +1,12 @@
+{
+ "runs": 2875,
+ "howl_base": 1184,
+ "howl_new": 1184,
+ "howl_flips": [],
+ "lsd_delta_median_db": 6.927791673660977e-14,
+ "lsd_delta_max_db": 7.531833083708257,
+ "u_head_max_abs_delta": 0.0002509757843043303,
+ "u_rms_max_rel_delta": 0.040622009367675974,
+ "pass": false,
+ "label": "SIMULATED-levinson-numba-not-adopted"
+}

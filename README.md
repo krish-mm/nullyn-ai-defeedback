@@ -85,6 +85,8 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 # optional, for the real-time USB interface path:
 pip install -e ".[realtime]"
+# optional, numba accelerators for Levinson-Durbin and the notch cascade:
+pip install -e ".[fast]"
 ```
 
 ## Quickstart
