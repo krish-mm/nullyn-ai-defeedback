@@ -4,6 +4,14 @@ All notable changes to the Nullyn AI package are documented here.
 Version numbers follow [pyproject.toml](pyproject.toml): patch bumps for
 fixes, minor bumps for features.
 
+## 0.4.1 — 2026-11-28
+
+Notch bank bookkeeping without per-hit allocations (issue #14). No change in behaviour.
+
+- `NotchBank` preallocates `max_notches` rows for `sos` and `zi` and keeps a running active count. `hit` and `tick` update those buffers in place (no `np.vstack` / `np.delete`), and `process` rebuilds only the rows whose frequency or gain changed, with a vectorised RBJ coefficient routine.
+- At 48 kHz, `NotchBank.process` went from 0.033–0.034 ms to 0.024 ms per block in the stage profiler. End to end, 48 kHz closed-loop p95/p99 is within the box's noise in this session: 1.279–1.294 / 1.447–1.485 ms → 1.238–1.278 / 1.342–1.467 ms, interleaved with 0.4.0. Peak transient allocation in the benchmark stayed at 414 KiB (the canceller still dominates that tracer).
+- Bit-exact: a new test drives the preallocated bank and the previous vstack/delete bank with the same hit/tick/process sequence, including evictions and releases, and checks output, state and coefficients for exact equality. Quality gate on all 575 held-out steady scenarios (SIMULATED): 0 howl flips, 0 dB LSD change, identical output fingerprint.
+
 ## 0.4.0 — 2026-11-28
 
 Optional numba backend for the notch biquad cascade (issue #13). No change in behaviour when the extra is installed.
