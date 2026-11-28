@@ -8,9 +8,8 @@ subsequent samples.
 from __future__ import annotations
 
 import numpy as np
-from scipy import signal
-
 from .constants import RESEARCH_FS
+from ._accel import sosfilt, warmup as _accel_warmup
 
 
 def peaking_eq(f0, gain_db, q, fs=RESEARCH_FS):
@@ -35,6 +34,7 @@ class NotchBank:
         self.first, self.step, self.min = first_db, step_db, min_db
         self.hold, self.rel = hold_s, release_db_per_s
         self.reset()
+        _accel_warmup()
 
     def reset(self):
         self.notches = []
@@ -86,5 +86,5 @@ class NotchBank:
             self.dirty = False
         if len(self.notches) == 0:
             return x
-        y, self.zi = signal.sosfilt(self.sos, x, zi=self.zi)
+        y, self.zi = sosfilt(self.sos, x, zi=self.zi)
         return y

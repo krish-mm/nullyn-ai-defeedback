@@ -4,6 +4,15 @@ All notable changes to the Nullyn AI package are documented here.
 Version numbers follow [pyproject.toml](pyproject.toml): patch bumps for
 fixes, minor bumps for features.
 
+## 0.4.0 — 2026-11-28
+
+Optional numba backend for the notch biquad cascade (issue #13). No change in behaviour when the extra is installed.
+
+- New optional extra: `pip install nullyn[fast]` (numba). `nullyn._accel` uses a compiled DF2T biquad cascade in place of `scipy.signal.sosfilt` when numba is present, and falls back to SciPy when it is not. The kernels are compiled at engine (and canceller / notch-bank) construction so the first audio callback does not pay JIT time (`cache=True`, no `fastmath`).
+- At 48 kHz, `NotchBank.process` went from 0.078–0.080 ms to 0.032–0.034 ms per block (about 2.4×). Micro-benchmarks on a 192-sample block: 19.23 → 3.37 µs at 4 notches (5.70×), 20.89 → 7.88 µs at 12 (2.65×), 25.62 → 13.23 µs at 24 (1.94×). End to end, 48 kHz closed-loop p95 1.325–1.333 → 1.266–1.275 ms, p99 1.469–1.647 → 1.394–1.424 ms, interleaved with 0.3.3 in the same session.
+- A numba Levinson-Durbin kernel is included and tested (15.22 → 0.83 µs, typical frames within ~2e-16 of `solve_toeplitz`) but is not used in `_update_lpc`. Replacing SciPy's solver moved LSD on already-howling quality-gate runs by up to 7.5 dB (0 howl flips; non-howling runs stayed within 3.5e-10 dB). The audio path keeps `solve_toeplitz` so the gate stays bit-exact.
+- Bit-exact: new tests pin the cascade to `scipy.signal.sosfilt` (exact equality) and the Levinson kernel to `solve_toeplitz` (≤ 1e-12), and check that construction warms the kernels up. Quality gate on all 575 held-out steady scenarios (SIMULATED), with numba enabled: 0 howl flips, 0 dB LSD change, identical output fingerprint.
+
 ## 0.3.3 — 2026-11-27
 
 Cheaper canceller update (issue #11). No change in behaviour.
